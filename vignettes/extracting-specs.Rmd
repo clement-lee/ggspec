@@ -1,0 +1,146 @@
+---
+title: "Extracting Plot Specifications with ggspec"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Extracting Plot Specifications with ggspec}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+```
+
+## Introduction
+
+`ggspec` provides a family of `spec_*()` functions that inspect a ggplot2 object
+and return its declarative specification as tidy data frames. This makes it easy
+to answer questions like:
+
+- Which geoms does this plot use?
+- What variables are mapped to which aesthetics, and at which layer?
+- Does this plot use `facet_wrap()`, and on which variable?
+
+```{r}
+library(ggspec)
+library(ggplot2)
+```
+
+## A motivating example
+
+```{r}
+p <- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~drv) +
+  scale_colour_brewer(palette = "Set1") +
+  labs(title = "Engine displacement vs highway MPG",
+       x     = "Displacement (L)",
+       y     = "Highway MPG (hwy)")
+p
+```
+
+## Layer specification
+
+`spec_layers()` returns one row per layer, with columns for the geom, stat,
+position adjustment, and resolved aesthetic mappings.
+
+```{r}
+spec_layers(p)
+```
+
+The `mapping` column is a list-column of named character vectors, where each
+name is an aesthetic and each value is the variable mapped to it.
+
+```{r}
+# Inspect the mapping for layer 1 (geom_point)
+spec_layers(p)$mapping[[1]]
+```
+
+### Controlling inheritance
+
+By default (`inherit = "resolve"`), global mappings set in `ggplot()` are
+merged with layer-local mappings, with the local mapping taking precedence for
+any aesthetic defined in both.
+
+```{r}
+# inherit = FALSE: only mappings explicitly set on the layer
+spec_layers(p, inherit = FALSE)$mapping
+```
+
+## Aesthetic specification (long format)
+
+`spec_aes()` pivots the mapping information into long format — one row per
+(layer × aesthetic) pair — making it easy to filter and inspect with standard
+`dplyr` operations.
+
+```{r}
+spec_aes(p)
+```
+
+The `source` column distinguishes:
+
+- `"global"` — set in `ggplot(aes(...))` only
+- `"local"` — set in the layer only (e.g. `geom_point(aes(...))`)
+- `"resolved"` — set in both; the local value takes precedence
+
+```{r}
+library(dplyr)
+spec_aes(p) |>
+  filter(aesthetic == "colour")
+```
+
+## Scale specification
+
+`spec_scales()` lists only explicitly added scales (default scales inferred at
+render time are not included, as they do not exist in the object before
+rendering).
+
+```{r}
+spec_scales(p)
+```
+
+## Facet specification
+
+`spec_facets()` returns a single-row data frame describing the faceting.
+
+```{r}
+spec_facets(p)
+```
+
+For an unfaceted plot, `facet_type` is `"null"`.
+
+## Label specification
+
+```{r}
+spec_labels(p)
+```
+
+## Coordinate system specification
+
+```{r}
+spec_coord(p)
+
+# Flipped coordinates
+spec_coord(p + coord_flip())
+```
+
+## The master summary: `spec_plot()`
+
+`spec_plot()` joins all of the above into a single wide data frame with one row
+per layer. Scale, facet, coordinate, and label information are embedded as
+list-columns, so all plot information is reachable from a single object.
+
+```{r}
+sp <- spec_plot(p)
+sp
+
+# Access per-layer aesthetics
+sp$aes_long[[1]]
+
+# Access the facet spec (same in every row)
+sp$facets[[1]]
+```

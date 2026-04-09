@@ -1,0 +1,164 @@
+---
+title: "Plot Grading and Testing with ggspec"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Plot Grading and Testing with ggspec}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+```
+
+## Introduction
+
+`ggspec` provides a comparison tier (`equiv_*()`) and a check/assertion tier
+(`check_plot()`, `expect_equiv_plot()`) for comparing two ggplot objects. These
+are designed to be framework-agnostic: they work in plain R scripts, `testthat`
+test suites, and `learnr`/`gradethis` grading pipelines.
+
+```{r}
+library(ggspec)
+library(ggplot2)
+```
+
+## Comparing two plots with `equiv_plot()`
+
+`equiv_plot()` is the high-level entry point. It accepts two ggplot objects and
+a character vector of check names to run. It returns a `ggspec_result` object
+that holds a pass/fail flag, a human-readable message, and a structured diff.
+
+```{r}
+ref <- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  facet_wrap(~drv) +
+  labs(title = "Reference plot")
+
+obs_correct <- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  facet_wrap(~drv) +
+  labs(title = "Reference plot")
+
+obs_wrong <- ggplot(mpg, aes(displ, hwy)) +
+  geom_smooth() +            # wrong geom
+  facet_wrap(~cyl) +         # wrong facet variable
+  labs(title = "Student plot")
+```
+
+```{r}
+# Passing case
+result_ok <- equiv_plot(ref, obs_correct)
+result_ok
+as.logical(result_ok)
+```
+
+```{r}
+# Failing case
+result_fail <- equiv_plot(ref, obs_wrong)
+result_fail
+```
+
+### Running individual checks
+
+Each `equiv_*()` function tests one dimension:
+
+```{r}
+equiv_layers(ref, obs_wrong)
+equiv_facets(ref, obs_wrong)
+equiv_labels(ref, obs_wrong, aesthetics = "title")
+```
+
+### The `exact` argument
+
+By default, `equiv_layers()` and `equiv_aes()` use subset matching: the
+observed plot must contain *at least* the layers/mappings of the reference.
+Set `exact = TRUE` to require an exact match.
+
+```{r}
+obs_extra <- ref + geom_smooth()  # extra layer is fine by default
+equiv_layers(ref, obs_extra)
+
+equiv_layers(ref, obs_extra, exact = TRUE)  # fails: extra layer
+```
+
+## Framework-agnostic checking with `check_plot()`
+
+`check_plot()` wraps `equiv_plot()` and calls a `fail_fn` if the check fails.
+The default `fail_fn = stop` makes it work anywhere.
+
+```{r error = TRUE}
+# Passes silently
+check_plot(obs_correct, ref, check = c("layers", "aes", "facets"))
+
+# Fails with an informative error
+check_plot(obs_wrong, ref, check = c("layers", "facets"))
+```
+
+### Swapping in `gradethis::fail()`
+
+In a `learnr` tutorial, swap the `fail_fn`:
+
+```r
+# Inside a learnr grade_this() block:
+check_plot(
+  .result,
+  expected = ref,
+  check    = c("layers", "aes", "facets"),
+  fail_fn  = gradethis::fail,
+  pass_fn  = gradethis::pass
+)
+```
+
+No hard dependency on `gradethis` is required.
+
+### Using `expect_equiv_plot()` in `testthat`
+
+```r
+testthat::test_that("student plot has correct layers and facets", {
+  expect_equiv_plot(
+    obs_correct,
+    ref,
+    check = c("layers", "aes", "facets")
+  )
+})
+```
+
+## Inspecting the diff
+
+Every `equiv_*()` result carries a `$detail` data frame for programmatic
+inspection:
+
+```{r}
+result <- equiv_aes(ref, obs_wrong)
+result$detail
+```
+
+## Comparing layer parameters
+
+`equiv_params()` checks whether a specific layer's non-aesthetic parameters
+match, e.g. checking that a student used `se = FALSE` on `geom_smooth()`.
+
+```{r}
+p_ref   <- ggplot(mpg, aes(displ, hwy)) + geom_smooth(method = "lm", se = FALSE)
+p_wrong <- ggplot(mpg, aes(displ, hwy)) + geom_smooth(method = "lm", se = TRUE)
+
+equiv_params(p_ref, p_wrong, layer = 1L, params = "se")
+```
+
+## Summary of available checks
+
+| Function | What it checks |
+|---|---|
+| `equiv_layers()` | Geom and stat per layer |
+| `equiv_aes()` | Aesthetic-to-variable mappings |
+| `equiv_scales()` | Explicitly added scales |
+| `equiv_facets()` | Facet type and variables |
+| `equiv_labels()` | Title, axis, and aesthetic labels |
+| `equiv_coord()` | Coordinate system type |
+| `equiv_params()` | Non-aesthetic layer parameters |
+| `equiv_data()` | Data hash per layer |
+| `equiv_plot()` | All of the above in one call |

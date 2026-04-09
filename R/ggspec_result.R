@@ -1,0 +1,68 @@
+#' Constructor for ggspec comparison results
+#'
+#' `ggspec_result` objects are returned by all `equiv_*()` and `check_plot()`
+#' functions. They carry a pass/fail flag, a human-readable message, and
+#' (optionally) a structured diff data frame for programmatic inspection.
+#'
+#' @param pass Logical scalar.
+#' @param message Character scalar: human-readable summary.
+#' @param detail Optional data frame with per-item comparison details, or
+#'   `NULL`.
+#' @param check Character scalar naming the check that produced this result
+#'   (e.g. `"layers"`, `"aes"`).
+#'
+#' @return An object of class `ggspec_result` (a named list).
+#' @keywords internal
+new_ggspec_result <- function(pass, message, detail = NULL, check = NA_character_) {
+  structure(
+    list(pass = pass, message = message, detail = detail, check = check),
+    class = "ggspec_result"
+  )
+}
+
+#' @export
+print.ggspec_result <- function(x, ...) {
+  icon <- if (isTRUE(x$pass)) "PASS" else "FAIL"
+  cat(sprintf("[%s] %s\n", icon, x$message))
+  if (!is.null(x$detail) && nrow(x$detail) > 0L) {
+    cat("  Detail:\n")
+    print(x$detail, ...)
+  }
+  invisible(x)
+}
+
+#' @export
+as.logical.ggspec_result <- function(x, ...) x$pass
+
+#' Combine multiple `ggspec_result` objects into one
+#'
+#' The combined result passes only if all sub-results pass. The message
+#' summarises how many checks passed.
+#'
+#' @param results A list of `ggspec_result` objects.
+#' @return A single `ggspec_result`.
+#' @keywords internal
+combine_results <- function(results) {
+  pass    <- all(vapply(results, function(r) isTRUE(r$pass), logical(1L)))
+  n_pass  <- sum(vapply(results, function(r) isTRUE(r$pass), logical(1L)))
+  n_total <- length(results)
+  msg     <- sprintf("%d/%d checks passed", n_pass, n_total)
+
+  if (!pass) {
+    failed_msgs <- vapply(
+      results[!vapply(results, function(r) isTRUE(r$pass), logical(1L))],
+      function(r) r$message,
+      character(1L)
+    )
+    msg <- paste0(msg, ": ", paste(failed_msgs, collapse = "; "))
+  }
+
+  detail <- dplyr::bind_rows(lapply(results, function(r) {
+    if (is.null(r$detail)) return(NULL)
+    dplyr::mutate(r$detail, check = r$check, .before = 1L)
+  }))
+
+  new_ggspec_result(pass = pass, message = msg,
+                    detail = if (nrow(detail) == 0L) NULL else detail,
+                    check = "combined")
+}
