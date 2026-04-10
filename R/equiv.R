@@ -1,15 +1,18 @@
 #' Compare two ggplot objects across multiple dimensions
 #'
 #' `equiv_plot()` is the high-level entry point. It runs the requested
-#' per-dimension `equiv_*()` checks and returns a combined [ggspec_result].
+#' per-dimension `equiv_*()` checks and returns a combined `ggspec_result`.
+#' Accepts either ggplot objects or `ggspec_canon` objects (produced by
+#' [canon()]).
 #'
-#' @param p1 The reference ggplot object.
-#' @param p2 The observed ggplot object to compare against `p1`.
+#' @param p1 The reference ggplot or `ggspec_canon` object.
+#' @param p2 The observed ggplot or `ggspec_canon` object to compare against
+#'   `p1`.
 #' @param check Character vector of checks to run. Any subset of
 #'   `c("layers", "aes", "scales", "facets", "labels", "coord")`.
 #' @param ... Additional arguments passed to individual `equiv_*()` functions.
 #'
-#' @return A [ggspec_result] object. `as.logical()` on the result gives a
+#' @return A `ggspec_result` object. `as.logical()` on the result gives a
 #'   single `TRUE`/`FALSE`.
 #' @export
 #' @examples
@@ -24,8 +27,8 @@ equiv_plot <- function(p1, p2,
                        check = c("layers", "aes", "scales", "facets",
                                  "labels", "coord"),
                        ...) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
+  .assert_gg_input(p1, "p1")
+  .assert_gg_input(p2, "p2")
   check <- match.arg(check, several.ok = TRUE)
 
   fns <- list(
@@ -52,15 +55,15 @@ equiv_plot <- function(p1, p2,
 
 #' Compare layer structure of two ggplot objects
 #'
-#' @param p1 Reference ggplot object.
-#' @param p2 Observed ggplot object.
+#' @param p1 Reference ggplot or `ggspec_canon` object.
+#' @param p2 Observed ggplot or `ggspec_canon` object.
 #' @param exact Logical. If `TRUE`, the number and order of layers must match
 #'   exactly. If `FALSE` (default), `p2` must contain at least the layers
 #'   present in `p1` (as a subset, ignoring order).
 #' @param check_order Logical. If `TRUE` and `exact = FALSE`, layer order must
 #'   also match. Ignored when `exact = TRUE`.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
@@ -69,11 +72,8 @@ equiv_plot <- function(p1, p2,
 #' equiv_layers(p1, p2)           # passes (p1's layers are a subset of p2)
 #' equiv_layers(p1, p2, exact = TRUE)  # fails (p2 has more layers)
 equiv_layers <- function(p1, p2, exact = FALSE, check_order = FALSE) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
-
-  l1 <- spec_layers(p1)
-  l2 <- spec_layers(p2)
+  l1 <- .get_layers_tbl(p1, "p1")
+  l2 <- .get_layers_tbl(p2, "p2")
 
   detail <- .compare_layers_tbl(l1, l2)
 
@@ -102,15 +102,15 @@ equiv_layers <- function(p1, p2, exact = FALSE, check_order = FALSE) {
 
 #' Compare aesthetic mappings of two ggplot objects
 #'
-#' @param p1 Reference ggplot object.
-#' @param p2 Observed ggplot object.
+#' @param p1 Reference ggplot or `ggspec_canon` object.
+#' @param p2 Observed ggplot or `ggspec_canon` object.
 #' @param layer Integer vector of layer indices to compare. `NULL` (default)
 #'   compares all layers present in `p1`.
 #' @param exact Logical. If `FALSE` (default), `p2` must contain at least the
 #'   mappings present in `p1` (additional mappings are allowed). If `TRUE`,
 #'   the mapping sets must be identical.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
@@ -120,11 +120,8 @@ equiv_layers <- function(p1, p2, exact = FALSE, check_order = FALSE) {
 #' equiv_aes(p1, p2)           # passes (p1's mappings are a subset)
 #' equiv_aes(p1, p2, exact = TRUE)  # fails (p2 has extra colour mapping)
 equiv_aes <- function(p1, p2, layer = NULL, exact = FALSE) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
-
-  a1 <- spec_aes(p1, layer = layer)
-  a2 <- spec_aes(p2, layer = layer)
+  a1 <- .get_aes_tbl(p1, layer = layer, arg_name = "p1")
+  a2 <- .get_aes_tbl(p2, layer = layer, arg_name = "p2")
 
   detail <- .compare_aes_tbl(a1, a2)
   missing_rows  <- detail[detail$status == "missing",  , drop = FALSE]
@@ -159,12 +156,12 @@ equiv_aes <- function(p1, p2, layer = NULL, exact = FALSE) {
 
 #' Compare scales of two ggplot objects
 #'
-#' @param p1 Reference ggplot object.
-#' @param p2 Observed ggplot object.
+#' @param p1 Reference ggplot or `ggspec_canon` object.
+#' @param p2 Observed ggplot or `ggspec_canon` object.
 #' @param aesthetics Character vector of aesthetics to compare. `NULL`
 #'   (default) compares all scales present in `p1`.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
@@ -173,11 +170,8 @@ equiv_aes <- function(p1, p2, layer = NULL, exact = FALSE) {
 #'   ggplot2::geom_point()
 #' equiv_scales(p1, p2)
 equiv_scales <- function(p1, p2, aesthetics = NULL) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
-
-  s1 <- spec_scales(p1)
-  s2 <- spec_scales(p2)
+  s1 <- .get_scales_tbl(p1, "p1")
+  s2 <- .get_scales_tbl(p2, "p2")
 
   if (!is.null(aesthetics)) {
     s1 <- s1[s1$aesthetic %in% aesthetics, , drop = FALSE]
@@ -194,8 +188,8 @@ equiv_scales <- function(p1, p2, aesthetics = NULL) {
   pass <- length(missing_aes) == 0L && length(type_mismatch) == 0L
   msg  <- if (pass) "Scales match." else {
     parts <- character(0L)
-    if (length(missing_aes))    parts <- c(parts, sprintf("missing scale(s): %s", paste(missing_aes, collapse = ", ")))
-    if (length(type_mismatch))  parts <- c(parts, sprintf("scale type mismatch for: %s", paste(type_mismatch, collapse = ", ")))
+    if (length(missing_aes))   parts <- c(parts, sprintf("missing scale(s): %s", paste(missing_aes, collapse = ", ")))
+    if (length(type_mismatch)) parts <- c(parts, sprintf("scale type mismatch for: %s", paste(type_mismatch, collapse = ", ")))
     paste(parts, collapse = "; ")
   }
 
@@ -208,10 +202,10 @@ equiv_scales <- function(p1, p2, aesthetics = NULL) {
 
 #' Compare facet specification of two ggplot objects
 #'
-#' @param p1 Reference ggplot object.
-#' @param p2 Observed ggplot object.
+#' @param p1 Reference ggplot or `ggspec_canon` object.
+#' @param p2 Observed ggplot or `ggspec_canon` object.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
@@ -220,11 +214,8 @@ equiv_scales <- function(p1, p2, aesthetics = NULL) {
 #'   ggplot2::geom_point() + ggplot2::facet_wrap(~drv)
 #' equiv_facets(p1, p2)
 equiv_facets <- function(p1, p2) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
-
-  f1 <- spec_facets(p1)
-  f2 <- spec_facets(p2)
+  f1 <- .get_facets_tbl(p1, "p1")
+  f2 <- .get_facets_tbl(p2, "p2")
 
   diffs <- character(0L)
   if (!identical(f1$facet_type, f2$facet_type))
@@ -246,12 +237,12 @@ equiv_facets <- function(p1, p2) {
 
 #' Compare labels of two ggplot objects
 #'
-#' @param p1 Reference ggplot object.
-#' @param p2 Observed ggplot object.
+#' @param p1 Reference ggplot or `ggspec_canon` object.
+#' @param p2 Observed ggplot or `ggspec_canon` object.
 #' @param aesthetics Character vector of label names to compare. `NULL`
 #'   (default) compares all labels present in `p1`.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
@@ -261,11 +252,8 @@ equiv_facets <- function(p1, p2) {
 #' equiv_labels(p1, p2)
 #' equiv_labels(p1, p2, aesthetics = "x")  # passes (x labels same)
 equiv_labels <- function(p1, p2, aesthetics = NULL) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
-
-  l1 <- spec_labels(p1)
-  l2 <- spec_labels(p2)
+  l1 <- .get_labels_tbl(p1, "p1")
+  l2 <- .get_labels_tbl(p2, "p2")
 
   if (!is.null(aesthetics)) {
     l1 <- l1[l1$aesthetic %in% aesthetics, , drop = FALSE]
@@ -303,10 +291,10 @@ equiv_labels <- function(p1, p2, aesthetics = NULL) {
 
 #' Compare coordinate systems of two ggplot objects
 #'
-#' @param p1 Reference ggplot object.
-#' @param p2 Observed ggplot object.
+#' @param p1 Reference ggplot or `ggspec_canon` object.
+#' @param p2 Observed ggplot or `ggspec_canon` object.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
@@ -314,11 +302,8 @@ equiv_labels <- function(p1, p2, aesthetics = NULL) {
 #' p2 <- p1 + ggplot2::coord_flip()
 #' equiv_coord(p1, p2)
 equiv_coord <- function(p1, p2) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
-
-  c1 <- spec_coord(p1)
-  c2 <- spec_coord(p2)
+  c1 <- .get_coord_tbl(p1, "p1")
+  c2 <- .get_coord_tbl(p2, "p2")
 
   pass <- identical(c1$coord_type, c2$coord_type)
   msg  <- if (pass) "Coordinate systems match." else
@@ -334,14 +319,14 @@ equiv_coord <- function(p1, p2) {
 
 #' Compare parameters of a specific layer in two ggplot objects
 #'
-#' @param p1 Reference ggplot object.
-#' @param p2 Observed ggplot object.
+#' @param p1 Reference ggplot or `ggspec_canon` object.
+#' @param p2 Observed ggplot or `ggspec_canon` object.
 #' @param layer Integer: which layer index to compare (1-based). Compared by
 #'   position.
 #' @param params Character vector of parameter names to check. `NULL`
 #'   (default) checks all parameters present in `p1`'s layer.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
@@ -350,12 +335,9 @@ equiv_coord <- function(p1, p2) {
 #'   ggplot2::geom_smooth(method = "loess", se = TRUE)
 #' equiv_params(p1, p2, layer = 1L, params = c("se"))
 equiv_params <- function(p1, p2, layer = 1L, params = NULL) {
-  assert_ggplot(p1, "p1")
-  assert_ggplot(p2, "p2")
   layer <- as.integer(layer)
-
-  l1 <- spec_layers(p1)
-  l2 <- spec_layers(p2)
+  l1 <- .get_layers_tbl(p1, "p1")
+  l2 <- .get_layers_tbl(p2, "p2")
 
   if (layer > nrow(l1) || layer > nrow(l2)) {
     return(new_ggspec_result(
@@ -392,13 +374,14 @@ equiv_params <- function(p1, p2, layer = 1L, params = NULL) {
 #'
 #' Compares by hashing (using [rlang::hash()]), so large data frames are
 #' handled efficiently. Column order is ignored; row order is ignored.
+#' Only works with raw ggplot objects (not `ggspec_canon`).
 #'
 #' @param p1 Reference ggplot object.
 #' @param p2 Observed ggplot object.
 #' @param layer Integer vector of layer indices to compare. `NULL` (default)
 #'   compares the plot-level data.
 #'
-#' @return A [ggspec_result].
+#' @return A `ggspec_result`.
 #' @export
 #' @examples
 #' p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +

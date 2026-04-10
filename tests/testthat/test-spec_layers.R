@@ -22,7 +22,7 @@ test_that("spec_layers() returns correct column names", {
   p <- make_base_plot()
   result <- spec_layers(p)
   expect_named(result, c("layer_idx", "geom", "stat", "position",
-                          "mapping", "params", "inherit_aes"))
+                          "mapping", "params", "inherit_aes", "data_source"))
 })
 
 test_that("spec_layers() returns empty tibble for plot with no layers", {
@@ -30,7 +30,7 @@ test_that("spec_layers() returns empty tibble for plot with no layers", {
   result <- spec_layers(p)
   expect_equal(nrow(result), 0L)
   expect_named(result, c("layer_idx", "geom", "stat", "position",
-                          "mapping", "params", "inherit_aes"))
+                          "mapping", "params", "inherit_aes", "data_source"))
 })
 
 test_that("spec_layers() mapping column is a list of character vectors", {

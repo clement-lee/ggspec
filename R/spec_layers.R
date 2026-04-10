@@ -22,6 +22,9 @@
 #'     \item{`params`}{List-column of named lists of non-aesthetic layer
 #'       parameters.}
 #'     \item{`inherit_aes`}{Logical: does the layer inherit the global mapping?}
+#'     \item{`data_source`}{Character: `"global"` if the layer inherits the
+#'       plot-level data, `"local"` if it carries its own data frame or
+#'       data-transformation function.}
 #'   }
 #'
 #' @export
@@ -48,7 +51,8 @@ spec_layers <- function(p, inherit = "resolve") {
       position    = .position_name(l),
       mapping     = list(mapping_chr),
       params      = list(params),
-      inherit_aes = isTRUE(l$inherit.aes)
+      inherit_aes = isTRUE(l$inherit.aes),
+      data_source = .layer_data_source(l)
     )
   })
 
@@ -72,6 +76,13 @@ spec_layers <- function(p, inherit = "resolve") {
   c(params, stat_p, aes_p)
 }
 
+#' Determine whether a layer uses the global plot data or its own
+#' @noRd
+.layer_data_source <- function(layer) {
+  d <- layer$data
+  if (is.null(d) || inherits(d, "waiver")) "global" else "local"
+}
+
 #' Return an empty tibble with the correct spec_layers() schema
 #' @noRd
 .empty_layers_tbl <- function() {
@@ -82,6 +93,7 @@ spec_layers <- function(p, inherit = "resolve") {
     position    = character(),
     mapping     = list(),
     params      = list(),
-    inherit_aes = logical()
+    inherit_aes = logical(),
+    data_source = character()
   )
 }

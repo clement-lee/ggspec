@@ -7,15 +7,21 @@
 #'
 #' @param p The observed ggplot object (e.g., the student's plot).
 #' @param expected The reference ggplot object.
-#' @param check Character vector of checks to run; passed to [equiv_plot()].
+#' @param check Character vector of checks to run; passed to [equiv_plot()] or
+#'   [compare_plots()].
+#' @param mode Character scalar: canonicalisation mode. If `NULL` (default),
+#'   [equiv_plot()] is used (direct comparison). If a string such as
+#'   `"structural"`, `"visual"`, or `"pedagogical"`, [compare_plots()] is
+#'   used, applying [canon()] before comparing.
 #' @param fail_fn A function called with the failure message string when the
 #'   check does not pass. Defaults to [stop()]. Useful alternatives:
 #'   `gradethis::fail`, `warning`, `message`, or a custom function.
 #' @param pass_fn A function called with the success message string when all
 #'   checks pass. Defaults to [invisible()].
-#' @param ... Additional arguments passed to [equiv_plot()].
+#' @param ... Additional arguments passed to [equiv_plot()] or
+#'   [compare_plots()].
 #'
-#' @return The [ggspec_result] invisibly. Side effects (calling `fail_fn` or
+#' @return The `ggspec_result` invisibly. Side effects (calling `fail_fn` or
 #'   `pass_fn`) are the primary interface.
 #' @export
 #' @examples
@@ -28,8 +34,13 @@
 #' obs_wrong <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
 #'   ggplot2::geom_line()
 #'
-#' # Passes silently
+#' # Passes silently (direct comparison)
 #' check_plot(obs_correct, ref, check = "layers")
+#'
+#' # Passes silently (structural mode: layer order ignored)
+#' obs_reordered <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+#'   ggplot2::geom_point()
+#' check_plot(obs_reordered, ref, check = "layers", mode = "structural")
 #'
 #' # Calls stop() with a message
 #' tryCatch(
@@ -39,13 +50,18 @@
 check_plot <- function(p, expected,
                        check = c("layers", "aes", "scales", "facets",
                                  "labels", "coord"),
+                       mode    = NULL,
                        fail_fn = stop,
                        pass_fn = invisible,
                        ...) {
   assert_ggplot(p,        "p")
   assert_ggplot(expected, "expected")
 
-  result <- equiv_plot(p1 = expected, p2 = p, check = check, ...)
+  result <- if (!is.null(mode)) {
+    compare_plots(p1 = expected, p2 = p, mode = mode, check = check, ...)
+  } else {
+    equiv_plot(p1 = expected, p2 = p, check = check, ...)
+  }
 
   if (!isTRUE(result$pass)) {
     fail_fn(result$message)

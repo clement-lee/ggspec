@@ -156,3 +156,192 @@ has_layer <- function(p, geom = NULL, stat = NULL) {
 
 # re-export rlang's null-coalescing operator for internal use
 `%||%` <- rlang::`%||%`
+
+# ---------------------------------------------------------------------------
+# Convenience wrappers assimilating user's preliminary functions
+# ---------------------------------------------------------------------------
+
+#' Extract all aesthetic mappings as a flat data frame
+#'
+#' Returns one row per unique (aesthetic, variable) pair found anywhere in the
+#' plot — across all layers and the global mapping — after resolving
+#' inheritance. This is a simpler alternative to [spec_aes()] when you only
+#' need a flat lookup table.
+#'
+#' @param p A ggplot object.
+#' @return A `data.frame` with columns `aes` (character) and `var` (character).
+#'   Rows where the variable is `NA` (e.g. aesthetics set to constants) are
+#'   excluded.
+#' @export
+#' @examples
+#' p <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+#'   ggplot2::geom_point(ggplot2::aes(colour = class))
+#' flat_mappings(p)
+flat_mappings <- function(p) {
+  assert_ggplot(p)
+  aes_tbl <- spec_aes(p, inherit = "resolve")
+  if (nrow(aes_tbl) == 0L) {
+    return(data.frame(aes = character(), var = character(),
+                      stringsAsFactors = FALSE))
+  }
+  result <- data.frame(
+    aes = aes_tbl$aesthetic,
+    var = aes_tbl$variable,
+    stringsAsFactors = FALSE
+  )
+  unique(result[!is.na(result$var), , drop = FALSE])
+}
+
+#' Test whether a specific aesthetic mapping exists in a plot
+#'
+#' Convenience predicate wrapping [flat_mappings()]. Returns `TRUE` if any
+#' layer (or the global mapping) maps `aesthetic` to `variable`.
+#'
+#' @param p A ggplot object.
+#' @param aesthetic Character scalar: name of the aesthetic, e.g. `"x"`,
+#'   `"colour"`.
+#' @param variable Character scalar: name of the variable, e.g. `"displ"`.
+#' @return `TRUE` or `FALSE`.
+#' @export
+#' @examples
+#' p <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+#'   ggplot2::geom_point(ggplot2::aes(colour = class))
+#' mapping_exists(p, "colour", "class")
+#' mapping_exists(p, "colour", "drv")
+mapping_exists <- function(p, aesthetic, variable) {
+  assert_ggplot(p)
+  fm <- flat_mappings(p)
+  any(fm$aes == aesthetic & fm$var == variable)
+}
+
+#' Find which layer of a plot uses a given data frame
+#'
+#' Returns an integer indicating where `data` appears in the plot:
+#' - `0L` — the plot-level (`p$data`) data
+#' - `i` (positive integer) — `p$layers[[i]]$data`
+#' - `NA_integer_` — not found
+#'
+#' Comparison is done with [identical()], so the data frame must be the exact
+#' same object (or an identical copy).
+#'
+#' @param p A ggplot object.
+#' @param data A data frame to search for.
+#' @return An integer scalar.
+#' @export
+#' @examples
+#' drv_summary <- dplyr::group_by(ggplot2::mpg, drv) |>
+#'   dplyr::summarise(mean_displ = mean(displ))
+#' p <- ggplot2::ggplot() +
+#'   ggplot2::geom_jitter(data = ggplot2::mpg,
+#'                        ggplot2::aes(x = drv, y = displ)) +
+#'   ggplot2::geom_point(data = drv_summary,
+#'                       ggplot2::aes(x = drv, y = mean_displ))
+#' layer_data_index(p, drv_summary)
+layer_data_index <- function(p, data) {
+  assert_ggplot(p)
+  if (identical(p$data, data)) return(0L)
+  for (i in seq_along(p$layers)) {
+    if (identical(p$layers[[i]]$data, data)) return(i)
+  }
+  NA_integer_
+}
+
+# ---------------------------------------------------------------------------
+# Internal helpers for canon/compare dispatch
+# ---------------------------------------------------------------------------
+
+#' Assert that x is a ggplot or ggspec_canon object
+#' @noRd
+.assert_gg_input <- function(x, arg_name = deparse(substitute(x))) {
+  if (!is_ggplot(x) && !inherits(x, "ggspec_canon")) {
+    rlang::abort(
+      paste0("`", arg_name, "` must be a ggplot or ggspec_canon object, not ",
+             paste(class(x), collapse = "/"), "."),
+      class = "ggspec_bad_input"
+    )
+  }
+  invisible(x)
+}
+
+#' Extract the spec_layers()-equivalent tibble from a ggplot or ggspec_canon
+#' @noRd
+.get_layers_tbl <- function(x, arg_name = "x") {
+  if (inherits(x, "ggspec_canon")) {
+    keep <- intersect(names(x$spec),
+                      c("layer_idx", "geom", "stat", "position",
+                        "mapping", "params", "inherit_aes", "data_source"))
+    x$spec[, keep, drop = FALSE]
+  } else {
+    assert_ggplot(x, arg_name)
+    spec_layers(x)
+  }
+}
+
+#' Extract the spec_aes()-equivalent tibble from a ggplot or ggspec_canon
+#' @noRd
+.get_aes_tbl <- function(x, layer = NULL, arg_name = "x") {
+  if (inherits(x, "ggspec_canon")) {
+    tbl <- dplyr::bind_rows(x$spec$aes_long)
+    if (!is.null(layer)) tbl <- tbl[tbl$layer_idx %in% as.integer(layer), , drop = FALSE]
+    tbl
+  } else {
+    assert_ggplot(x, arg_name)
+    spec_aes(x, layer = layer)
+  }
+}
+
+#' Extract the spec_scales()-equivalent tibble from a ggplot or ggspec_canon
+#' @noRd
+.get_scales_tbl <- function(x, arg_name = "x") {
+  if (inherits(x, "ggspec_canon")) {
+    if (nrow(x$spec) == 0L) return(.empty_scales_tbl())
+    x$spec$scales[[1L]]
+  } else {
+    assert_ggplot(x, arg_name)
+    spec_scales(x)
+  }
+}
+
+#' Extract the spec_facets()-equivalent tibble from a ggplot or ggspec_canon
+#' @noRd
+.get_facets_tbl <- function(x, arg_name = "x") {
+  if (inherits(x, "ggspec_canon")) {
+    if (nrow(x$spec) == 0L) {
+      return(tibble::tibble(facet_type = "null", rows = NA_character_,
+                            cols = NA_character_, scales = NA_character_,
+                            space = NA_character_, labeller = NA_character_))
+    }
+    x$spec$facets[[1L]]
+  } else {
+    assert_ggplot(x, arg_name)
+    spec_facets(x)
+  }
+}
+
+#' Extract the spec_labels()-equivalent tibble from a ggplot or ggspec_canon
+#' @noRd
+.get_labels_tbl <- function(x, arg_name = "x") {
+  if (inherits(x, "ggspec_canon")) {
+    if (nrow(x$spec) == 0L) return(.empty_labels_tbl())
+    x$spec$labels[[1L]]
+  } else {
+    assert_ggplot(x, arg_name)
+    spec_labels(x)
+  }
+}
+
+#' Extract the spec_coord()-equivalent tibble from a ggplot or ggspec_canon
+#' @noRd
+.get_coord_tbl <- function(x, arg_name = "x") {
+  if (inherits(x, "ggspec_canon")) {
+    if (nrow(x$spec) == 0L) {
+      return(tibble::tibble(coord_type = "cartesian",
+                            xlim = list(NULL), ylim = list(NULL),
+                            expand = TRUE, clip = "on"))
+    }
+    x$spec$coord[[1L]]
+  } else {
+    assert_ggplot(x, arg_name)
+    spec_coord(x)
+  }
+}
