@@ -212,11 +212,16 @@ print.ggspec_canon <- function(x, ...) {
 
   # Swap x <-> y in mapping list-column
   spec$mapping <- lapply(spec$mapping, function(m) {
-    x_val <- m["x"]
-    y_val <- m["y"]
-    if (!is.na(x_val) && !is.na(y_val)) {
-      m["x"] <- y_val
-      m["y"] <- x_val
+    has_x <- "x" %in% names(m) && !is.na(m[["x"]])
+    has_y <- "y" %in% names(m) && !is.na(m[["y"]])
+    if (has_x && has_y) {
+      tmp    <- m[["x"]]
+      m["x"] <- m[["y"]]
+      m["y"] <- tmp
+    } else if (has_y) {
+      names(m)[names(m) == "y"] <- "x"
+    } else if (has_x) {
+      names(m)[names(m) == "x"] <- "y"
     }
     m
   })
@@ -226,10 +231,18 @@ print.ggspec_canon <- function(x, ...) {
     spec$aes_long <- lapply(spec$aes_long, function(tbl) {
       x_rows <- tbl$aesthetic == "x"
       y_rows <- tbl$aesthetic == "y"
-      x_vars <- tbl$variable[x_rows]
-      y_vars <- tbl$variable[y_rows]
-      tbl$variable[x_rows] <- y_vars
-      tbl$variable[y_rows] <- x_vars
+      has_x <- any(x_rows)
+      has_y <- any(y_rows)
+      if (has_x && has_y) {
+        x_vars <- tbl$variable[x_rows]
+        y_vars <- tbl$variable[y_rows]
+        tbl$variable[x_rows] <- y_vars
+        tbl$variable[y_rows] <- x_vars
+      } else if (has_y) {
+        tbl$aesthetic[y_rows] <- "x"
+      } else if (has_x) {
+        tbl$aesthetic[x_rows] <- "y"
+      }
       tbl
     })
   }

@@ -1,0 +1,317 @@
+---
+title: "Equivalence Patterns and Canonicalisation Modes"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Equivalence Patterns and Canonicalisation Modes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+```
+
+## Introduction
+
+Two ggplot2 calls can produce identical visual output while being written in
+structurally different ways — different placement of `aes()`, different geoms
+with built-in stat computation vs pre-computed data, or `coord_flip()` instead
+of swapped aesthetics. This vignette catalogues the equivalence patterns
+supported by ggspec, documents which function or mode is needed for each, and
+flags patterns not yet covered.
+
+The patterns fall into three tiers:
+
+| Tier | Entry point | Key rules applied |
+|---|---|---|
+| Direct | `equiv_plot()` | Resolved aes, geom-name subset |
+| Structural | `compare_plots(mode = "structural")` | `geom_col` → `geom_bar`, layer order |
+| Visual | `compare_plots(mode = "visual")` | `coord_flip` absorbed, scale `name` → `labs()` |
+
+```{r}
+library(ggspec)
+library(ggplot2)
+library(dplyr)
+```
+
+---
+
+## 1. Inheritance transparency
+
+ggspec resolves aesthetic mappings (via `spec_aes(inherit = "resolve")`) before
+any comparison, so different coding styles that yield the same final mapping all
+pass `equiv_plot()` directly.
+
+### 1.1 Global, local, and mixed `aes()`
+
+```{r}
+# Global aes — canonical form
+p_global <- ggplot(airquality, aes(x = Day, y = Wind)) +
+  geom_line() + geom_point()
+
+# All aesthetics local to each layer
+p_local <- ggplot(airquality) +
+  geom_line(aes(x = Day, y = Wind)) +
+  geom_point(aes(x = Day, y = Wind))
+
+# Mixed: global x, local y per layer
+p_mixed <- ggplot(airquality, aes(x = Day)) +
+  geom_line(aes(y = Wind)) +
+  geom_point(aes(y = Wind))
+```
+
+```{r}
+equiv_plot(p_global, p_local, check = c("layers", "aes"))
+equiv_plot(p_global, p_mixed, check = c("layers", "aes"))
+```
+
+All three pass. The `source` column in `spec_aes()` records where each mapping
+originates (`"global"`, `"local"`, or `"resolved"`), but the comparison only
+examines the resolved variable name.
+
+### 1.2 Global vs per-layer data
+
+Specifying data globally in `ggplot()` vs attaching it to individual layers is
+also transparent:
+
+```{r}
+# Global data
+p_data_global <- ggplot(airquality, aes(x = Day, y = Wind)) +
+  geom_line() + geom_point()
+
+# Per-layer data
+p_data_local <- ggplot() +
+  geom_line(aes(x = Day, y = Wind), data = airquality) +
+  geom_point(aes(x = Day, y = Wind), data = airquality)
+```
+
+```{r}
+equiv_plot(p_data_global, p_data_local, check = c("layers", "aes"))
+```
+
+`spec_layers()$data_source` is `"global"` vs `"local"` in these two plots, but
+that column is intentionally excluded from all `equiv_*` comparisons. Where data
+lives is a stylistic choice that should not penalise a student who achieves the
+same visual result.
+
+The same holds for a two-dataset plot where the two layers draw from different
+data frames (e.g. a base map layer and a data overlay). As long as the geom names
+and aesthetic mappings of each layer match, `equiv_layers()` and `equiv_aes()`
+pass regardless of how the data frames are distributed across `ggplot()` and each
+`geom_*()` call.
+
+### 1.3 Layer order
+
+`equiv_layers(exact = FALSE)` (the default) performs a subset check on geom
+names, so layer order does not matter. `compare_plots(mode = "structural")`
+additionally sorts layers into a canonical order before comparison, making
+`exact = TRUE` checks order-insensitive too.
+
+```{r}
+p_point_line  <- ggplot(airquality, aes(Day, Wind)) + geom_point() + geom_line()
+p_line_point  <- ggplot(airquality, aes(Day, Wind)) + geom_line()  + geom_point()
+
+# Subset check: passes regardless of order
+equiv_layers(p_point_line, p_line_point)
+
+# Exact check: fails without canonicalisation
+equiv_layers(p_point_line, p_line_point, exact = TRUE)
+
+# Structural mode sorts layers, so exact check passes
+compare_plots(p_point_line, p_line_point,
+              mode = "structural", check = "layers")
+```
+
+---
+
+## 2. Bar chart equivalence
+
+### 2.1 Direct equivalents
+
+Global vs local `aes()` for `geom_bar()` is the same inheritance story as above:
+
+```{r}
+p_ref <- ggplot(mpg, aes(x = class)) + geom_bar()
+p_loc <- ggplot(mpg) + geom_bar(aes(x = class))
+
+equiv_plot(p_ref, p_loc, check = c("layers", "aes"))
+```
+
+Pre-counted data with `geom_bar(stat = "identity")` also passes `equiv_plot()`
+directly. `equiv_layers(exact = FALSE)` only tests geom names ("bar" in both);
+`equiv_aes(exact = FALSE)` uses subset matching, so the extra `y = n` mapping in
+the observation does not fail the reference's `x = class` requirement:
+
+```{r}
+counts <- count(mpg, class)
+
+p_identity <- ggplot(counts, aes(x = class, y = n)) +
+  geom_bar(stat = "identity") + labs(y = "n")
+
+equiv_plot(p_ref, p_identity, check = c("layers", "aes"))
+```
+
+### 2.2 `geom_col()` — structural mode required
+
+`geom_col()` is internally `GeomCol`, whose name is `"col"`, not `"bar"`.
+`equiv_layers()` therefore fails when the reference uses `geom_bar()`:
+
+```{r}
+p_col <- ggplot(counts, aes(x = class, y = n)) + geom_col() + labs(y = "n")
+
+# Direct comparison fails on the layer check:
+equiv_plot(p_ref, p_col, check = "layers")
+
+# Structural mode applies .rule_geom_col_to_bar, normalising "col" → "bar":
+compare_plots(p_ref, p_col, mode = "structural", check = "layers")
+```
+
+The same applies to any `geom_col()` combination regardless of whether
+`scale_*` or `labs()` is also present.
+
+### 2.3 `coord_flip()` — visual mode required
+
+A bar chart written as `aes(y = class) + coord_flip()` has its x/y aesthetics
+swapped relative to the canonical `aes(x = class)` form. `equiv_aes()` sees
+`"1::x"` in the reference but only `"1::y"` in the observation, so it fails:
+
+```{r}
+p_flip <- ggplot(mpg, aes(y = class)) + geom_bar() + coord_flip()
+
+# Direct aes check fails:
+equiv_plot(p_ref, p_flip, check = "aes")
+
+# Visual mode applies .rule_coord_flip, swapping x ↔ y and replacing
+# coord_flip with coord_cartesian before comparison:
+compare_plots(p_ref, p_flip, mode = "visual", check = c("layers", "aes", "coord"))
+```
+
+This applies equally to `geom_col() + coord_flip()` and to pre-counted variants.
+All such plots require `mode = "visual"` when compared to a non-flipped reference.
+
+### 2.4 Scale `name` vs `labs()` — visual mode required
+
+`scale_y_continuous(name = "count")` stores the label inside the scale object;
+`labs(y = "count")` stores it in `p$labels`. They appear different to
+`equiv_labels()` unless visual mode is active:
+
+```{r}
+p_scale_name <- ggplot(counts, aes(x = class, y = n)) +
+  geom_bar(stat = "identity") + scale_y_continuous(name = "count")
+
+p_labs <- ggplot(counts, aes(x = class, y = n)) +
+  geom_bar(stat = "identity") + labs(y = "count")
+
+# Visual mode applies .rule_scale_name_to_labels, promoting the scale name
+# into the labels table:
+compare_plots(p_labs, p_scale_name, mode = "visual", check = "labels")
+```
+
+---
+
+## 3. Count plot equivalence
+
+### 3.1 `geom_count()` variants — direct equivalents
+
+All coding styles for the same `geom_count()` plot are equivalent via standard
+inheritance resolution:
+
+```{r}
+p_count_global <- ggplot(mpg, aes(x = drv, y = class)) + geom_count()
+p_count_local  <- ggplot(mpg) + geom_count(aes(x = drv, y = class))
+p_count_split  <- ggplot(mpg, aes(x = drv)) + geom_count(aes(y = class))
+
+equiv_plot(p_count_global, p_count_local, check = c("layers", "aes"))
+equiv_plot(p_count_global, p_count_split, check = c("layers", "aes"))
+```
+
+### 3.2 `geom_point(aes(size = n))` + pre-counted data — separate equivalence group
+
+`geom_count()` uses `GeomCount` (geom name `"count"`). `geom_point()` uses
+`GeomPoint` (geom name `"point"`). These are different names, so
+`equiv_layers()` fails when comparing across the two approaches:
+
+```{r}
+mpg_counts <- count(mpg, drv, class)
+
+p_point_sized <- ggplot(mpg_counts, aes(x = drv, y = class, size = n)) +
+  geom_point()
+
+# Fails: reference has geom "count", observation has geom "point"
+equiv_plot(p_count_global, p_point_sized, check = "layers")
+```
+
+These two plots are visually equivalent but **not spec-equivalent** under the
+current function set. They form separate equivalence groups:
+
+- **Group A** — `geom_count()` variants: equivalent within the group via `equiv_plot()`.
+- **Group B** — `geom_point(aes(size = n))` + `count()` variants: equivalent
+  within the group via `equiv_plot()`.
+
+Comparing across groups requires a custom canonicalisation rule that rewrites
+both the geom and the data simultaneously. See **Section 5**.
+
+---
+
+## 4. Histogram binning variants
+
+All histogram calls share geom name `"bar"` (histogram uses `GeomBar` +
+`StatBin`), so `equiv_layers()` passes regardless of binning parameters.
+`equiv_aes()` compares the `x` aesthetic, which is the same:
+
+```{r}
+p_hist_default  <- ggplot(mpg, aes(x = hwy)) + geom_histogram()
+p_hist_bins30   <- ggplot(mpg, aes(x = hwy)) + geom_histogram(bins = 30)
+p_hist_binwidth <- ggplot(mpg, aes(x = hwy)) + geom_histogram(binwidth = 3)
+
+equiv_plot(p_hist_default, p_hist_bins30,   check = c("layers", "aes"))
+equiv_plot(p_hist_default, p_hist_binwidth, check = c("layers", "aes"))
+```
+
+Binning parameters sit in the `params` list-column of `spec_layers()`. They can
+be checked explicitly with `equiv_params()` when the grader wants to enforce a
+specific binning choice:
+
+```{r}
+# Reference has no explicit bins; observation has bins = 30 — params differ
+equiv_params(p_hist_default, p_hist_bins30, layer = 1L, params = "bins")
+```
+
+The `pedagogical` mode logs `bins` vs `binwidth` usage via
+`.rule_histogram_bin_param`, without converting between them (the numeric values
+are not inter-derivable without knowing the data range).
+
+---
+
+## 5. Pending work
+
+### 5.1 Cross-geom stat equivalence
+
+The `geom_count()` / `geom_point(aes(size = n))` + `count()` boundary is an
+instance of a broader class: a plot that uses a stat-computing geom on raw data
+vs a plot that pre-computes the same statistic and applies a simpler geom.
+Current canonicalisation rules operate only on the spec (geom name, aes
+mappings, coord, scale names). A rule that could bridge these groups would need
+to:
+
+1. Detect a stat-computing layer (`stat = "sum"` for `geom_count`, `stat = "bin"`
+   for `geom_histogram`, etc.).
+2. Recognise that the comparison plot provides pre-computed data whose columns
+   match what the stat would have computed.
+3. Rewrite the spec (and possibly verify the data) to produce a common form.
+
+This requires integrating `equiv_data()` into the canonicalisation pipeline, which
+is more involved than the existing rules. See `next.md`.
+
+### 5.2 Multi-dataset layer verification
+
+`spec_layers()$data_source` marks which layers carry their own data frame, and
+`layer_data_index()` locates a specific data frame within a plot. For the
+comparison to verify that *corresponding* layers in two plots draw from
+semantically equivalent data frames, a matching step is needed. The current
+`equiv_data()` function compares by hash (after sorting columns), but it
+operates on a single layer index, not on matched pairs across plots. See `next.md`.
+```

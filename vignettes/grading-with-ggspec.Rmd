@@ -149,6 +149,66 @@ p_wrong <- ggplot(mpg, aes(displ, hwy)) + geom_smooth(method = "lm", se = TRUE)
 equiv_params(p_ref, p_wrong, layer = 1L, params = "se")
 ```
 
+## Canonicalisation-aware comparison with `compare_plots()`
+
+`equiv_plot()` performs direct structural comparison. When two plots are
+semantically equivalent but written differently — different geoms for the same
+stat, reversed aesthetic axes, scale names vs `labs()` — use `compare_plots()`,
+which normalises both plots before comparing.
+
+### Modes
+
+```r
+# "structural" — normalises geom_col → geom_bar, sorts layer order
+compare_plots(p_ref, p_col, mode = "structural", check = "layers")
+
+# "visual" — additionally absorbs coord_flip() and scale name → labs()
+compare_plots(p_ref, p_flip, mode = "visual", check = c("layers", "aes", "coord"))
+```
+
+The result is a `ggspec_compare` object extending `ggspec_result`, with extra
+fields `$canon_p1`, `$canon_p2` (the canonicalised specs) and `$mode`.
+
+### Using a mode in `check_plot()`
+
+Pass `mode` to `check_plot()` to apply canonicalisation in grading pipelines:
+
+```r
+# Passes for a student who used geom_col() instead of geom_bar()
+check_plot(student_plot, ref,
+           check = "layers",
+           mode  = "structural")
+
+# In learnr:
+check_plot(.result, ref,
+           check   = c("layers", "aes", "coord"),
+           mode    = "visual",
+           fail_fn = gradethis::fail,
+           pass_fn = gradethis::pass)
+```
+
+### What each mode covers
+
+| Mode | Normalisation rules applied |
+|---|---|
+| `"strict"` | None beyond what `spec_plot()` already does |
+| `"structural"` | `geom_col` → `geom_bar`; layer order sorted |
+| `"visual"` | Structural + `coord_flip` absorbed; scale `name` → `labs()` |
+| `"pedagogical"` | Visual + histogram `bins`/`binwidth` flagged; `after_stat()` logged |
+
+The `$changes` tibble on a `ggspec_canon` object records every normalisation
+applied, making the comparison transparent:
+
+```r
+c1 <- canon(p_flip, mode = "visual")
+c1$changes   # shows the coord_flip rule and its x/y swap
+```
+
+For a full catalogue of which equivalence patterns require which mode, see
+`vignette("equivalence-patterns")`.
+
+---
+
 ## Summary of available checks
 
 | Function | What it checks |
@@ -161,4 +221,5 @@ equiv_params(p_ref, p_wrong, layer = 1L, params = "se")
 | `equiv_coord()` | Coordinate system type |
 | `equiv_params()` | Non-aesthetic layer parameters |
 | `equiv_data()` | Data hash per layer |
-| `equiv_plot()` | All of the above in one call |
+| `equiv_plot()` | All of the above in one call (direct) |
+| `compare_plots()` | Canonicalise then `equiv_plot()` |

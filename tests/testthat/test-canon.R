@@ -134,6 +134,25 @@ test_that("canon() swaps x and y aesthetics when flipping", {
   expect_equal(unname(layer1_mapping["y"]), "g")
 })
 
+test_that("canon() handles coord_flip when only y is mapped (no x)", {
+  # geom_bar(aes(y = class)) + coord_flip is a common teaching pattern
+  p <- ggplot(mpg, aes(y = class)) + geom_bar() + coord_flip()
+  c1 <- canon(p, mode = "visual")
+  # y should be renamed to x (no x to swap with)
+  layer1_mapping <- c1$spec$mapping[[1]]
+  expect_equal(unname(layer1_mapping["x"]), "class")
+  expect_false("y" %in% names(layer1_mapping) && !is.na(layer1_mapping[["y"]]))
+})
+
+test_that("canon() handles coord_flip when only x is mapped (no y)", {
+  p <- ggplot(mpg, aes(x = class)) + geom_bar() + coord_flip()
+  c1 <- canon(p, mode = "visual")
+  # x should be renamed to y
+  layer1_mapping <- c1$spec$mapping[[1]]
+  expect_equal(unname(layer1_mapping["y"]), "class")
+  expect_false("x" %in% names(layer1_mapping) && !is.na(layer1_mapping[["x"]]))
+})
+
 # ---------------------------------------------------------------------------
 # Scale name -> labels rule (visual mode)
 # ---------------------------------------------------------------------------
