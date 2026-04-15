@@ -98,9 +98,11 @@ check_plot(obs_correct, ref, check = c("layers", "aes", "facets"))
 check_plot(obs_wrong, ref, check = c("layers", "facets"))
 ```
 
-### Swapping in `gradethis::fail()`
+### Swapping in a learnr/gradethis fail function
 
-In a `learnr` tutorial, swap the `fail_fn`:
+In a `learnr` tutorial, swap the `fail_fn` and `pass_fn` arguments to use the
+grading framework's own signalling functions (e.g. `gradethis::fail` /
+`gradethis::pass`):
 
 ```r
 # Inside a learnr grade_this() block:
@@ -108,12 +110,13 @@ check_plot(
   .result,
   expected = ref,
   check    = c("layers", "aes", "facets"),
-  fail_fn  = gradethis::fail,
-  pass_fn  = gradethis::pass
+  fail_fn  = your_grading_framework_fail_fn,
+  pass_fn  = your_grading_framework_pass_fn
 )
 ```
 
-No hard dependency on `gradethis` is required.
+No hard dependency on any grading framework is required — `fail_fn` and
+`pass_fn` can be any functions with compatible signatures.
 
 ### Using `expect_equiv_plot()` in `testthat`
 
@@ -179,12 +182,12 @@ check_plot(student_plot, ref,
            check = "layers",
            mode  = "structural")
 
-# In learnr:
+# In learnr (swap fail_fn/pass_fn for your grading framework):
 check_plot(.result, ref,
            check   = c("layers", "aes", "coord"),
            mode    = "visual",
-           fail_fn = gradethis::fail,
-           pass_fn = gradethis::pass)
+           fail_fn = your_grading_fail_fn,
+           pass_fn = your_grading_pass_fn)
 ```
 
 ### What each mode covers

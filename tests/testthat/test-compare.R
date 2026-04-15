@@ -116,24 +116,30 @@ test_that("compare_plots() fails for coord_flip vs swapped aes in structural mod
 # Scale name vs labs equivalence (visual mode)
 # ---------------------------------------------------------------------------
 
-test_that("equiv_labels fails when scale name vs labs differ", {
-  p1 <- make_scale_name_plot()
-  p2 <- make_labs_fill_plot()
-  # Direct comparison fails because labels differ
+test_that("equiv_labels fails when reference uses labs but observation uses scale name", {
+  # p1 (reference) has fill label in p$labels via labs(); spec_labels() sees it.
+  # p2 (observation) has fill label only in the scale object; spec_labels() returns
+  # nothing for fill.  The left-join on p1's label detects label_obs = NA -> FAIL.
+  p1 <- make_labs_fill_plot()
+  p2 <- make_scale_name_plot()
   result_direct <- equiv_labels(p1, p2, aesthetics = "fill")
   expect_false(as.logical(result_direct))
 })
 
 test_that("compare_plots() passes for scale name vs labs(fill=) in visual mode", {
-  p1 <- make_scale_name_plot()
-  p2 <- make_labs_fill_plot()
+  # Either direction works: visual mode promotes scale names into the labels table
+  # before comparison, so both plots end up with fill = "Vehicle class" in labels.
+  p1 <- make_labs_fill_plot()
+  p2 <- make_scale_name_plot()
   result <- compare_plots(p1, p2, mode = "visual", check = c("scales", "labels"))
   expect_true(as.logical(result))
 })
 
 test_that("compare_plots() fails for scale name vs labs in structural mode", {
-  p1 <- make_scale_name_plot()
-  p2 <- make_labs_fill_plot()
+  # Structural mode does not apply .rule_scale_name_to_labels, so the scale-name
+  # plot's fill label remains absent from spec_labels() -> same failure as direct.
+  p1 <- make_labs_fill_plot()
+  p2 <- make_scale_name_plot()
   result <- compare_plots(p1, p2, mode = "structural", check = "labels")
   expect_false(as.logical(result))
 })

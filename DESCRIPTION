@@ -2,11 +2,12 @@ Package: ggspec
 Type: Package
 Title: Extract and Compare ggplot2 Plot Specifications as Tidy Data Frames
 Version: 0.1.0
-Authors@R: person("First", "Last", email = "first.last@example.com",
-    role = c("aut", "cre"))
+Authors@R: person("Clement", "Lee", email = "clement.lee.tm@outlook.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-1785-8671"))
+Author: Clement Lee [aut, cre] (<https://orcid.org/0000-0003-1785-8671>)
+Maintainer: Clement Lee <clement.lee.tm@outlook.com>
 Description: Provides tools to inspect ggplot2 objects by extracting their
-    full declarative specification — layers, aesthetic mappings, scales,
-    facets, coordinate systems, and labels — as tidy data frames. A second
+    full declarative specification - layers, aesthetic mappings, scales,
+    facets, coordinate systems, and labels - as tidy data frames. A second
     tier of functions enables structural comparison of two ggplot objects,
     supporting automated plot testing, auditing, and framework-agnostic
     grading workflows. Unlike 'ggcheck', which is designed exclusively for
@@ -25,7 +26,6 @@ Imports:
     tibble (>= 3.2.0),
     dplyr (>= 1.1.0)
 Suggests:
-    gradethis,
     learnr,
     palmerpenguins,
     testthat (>= 3.0.0),
@@ -34,5 +34,5 @@ Suggests:
     covr
 VignetteBuilder: knitr
 Config/testthat/edition: 3
-URL: https://github.com/your-org/ggspec
-BugReports: https://github.com/your-org/ggspec/issues
+URL: https://github.com/clement-lee/ggspec
+BugReports: https://github.com/clement-lee/ggspec/issues

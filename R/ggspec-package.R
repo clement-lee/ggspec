@@ -20,6 +20,7 @@
 #' - [spec_labels()] — one row per label
 #' - [spec_coord()] — coordinate system properties
 #' - [spec_plot()] — master summary joining all of the above
+#' - [enrich_spec()] — spec_layers plus explicit/default flags from ggplot_build()
 #'
 #' @section Comparison functions:
 #' - [equiv_layers()] — compare layer structure

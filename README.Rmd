@@ -1,0 +1,119 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.path  = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# ggspec
+
+<!-- badges: start -->
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![R-CMD-check](https://github.com/clement-lee/ggspec/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/clement-lee/ggspec/actions/workflows/R-CMD-check.yaml)
+[![Codecov test coverage](https://codecov.io/gh/clement-lee/ggspec/graph/badge.svg)](https://app.codecov.io/gh/clement-lee/ggspec)
+[![CRAN status](https://www.r-pkg.org/badges/version/ggspec)](https://CRAN.R-project.org/package=ggspec)
+<!-- badges: end -->
+
+`ggspec` extracts the full declarative specification of a `ggplot2` object —
+layers, aesthetic mappings, scales, facets, coordinate system, and labels — as
+tidy data frames. A second tier of functions enables structural comparison of
+two ggplot objects, supporting automated plot testing, auditing, and
+framework-agnostic grading workflows.
+
+## Installation
+
+Install the development version from GitHub:
+
+```r
+# install.packages("remotes")
+remotes::install_github("clement-lee/ggspec")
+```
+
+## Usage
+
+### Extracting a spec
+
+```{r usage-spec}
+library(ggspec)
+library(ggplot2)
+
+p <- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~drv) +
+  labs(title = "Engine displacement vs highway MPG")
+
+spec_layers(p)
+spec_aes(p)
+```
+
+### Comparing two plots
+
+```{r usage-equiv}
+ref <- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  facet_wrap(~drv)
+
+obs_correct <- ggplot(mpg, aes(displ, hwy)) +
+  geom_point(aes(colour = class)) +
+  facet_wrap(~drv)
+
+obs_wrong <- ggplot(mpg, aes(displ, hwy)) +
+  geom_smooth() +
+  facet_wrap(~cyl)
+
+equiv_plot(ref, obs_correct)
+equiv_plot(ref, obs_wrong)
+```
+
+### Enriching a spec with build-derived defaults
+
+`enrich_spec()` uses `ggplot_build()` to identify which parameters and
+aesthetics were explicitly set by the user versus filled in by ggplot2:
+
+```{r usage-enrich}
+es <- enrich_spec(p)
+
+# Non-aesthetic parameters with explicit flag
+es$params_tbl[[1]]
+
+# Aesthetics resolved by ggplot2, with explicit flag
+es$built_aes[[1]]
+```
+
+## Key functions
+
+| Tier | Function | What it returns |
+|---|---|---|
+| Extraction | `spec_layers()` | One row per layer |
+| Extraction | `spec_aes()` | One row per layer × aesthetic |
+| Extraction | `spec_scales()` | One row per scale |
+| Extraction | `spec_facets()` | Facet type and variables |
+| Extraction | `spec_labels()` | One row per label |
+| Extraction | `spec_coord()` | Coordinate system |
+| Extraction | `enrich_spec()` | spec_layers + default/explicit flags |
+| Comparison | `equiv_plot()` | All checks in one call |
+| Comparison | `equiv_layers()` | Geom and stat per layer |
+| Comparison | `equiv_aes()` | Aesthetic mappings |
+| Comparison | `compare_plots()` | Canonicalise then compare |
+| Check | `check_plot()` | Framework-agnostic assertion |
+| Check | `expect_equiv_plot()` | testthat expectation |
+
+## Related packages
+
+- **[ggcheck](https://github.com/rstudio/ggcheck)** — designed for
+  `learnr`/`gradethis` pipelines; returns ad-hoc objects.
+  `ggspec` returns rectangular, pipeable tibbles and has no grading framework
+  dependency.
+
+## License
+
+MIT

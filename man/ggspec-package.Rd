@@ -27,6 +27,7 @@ automated testing, plot auditing, or grading workflows.
 \item \code{\link[=spec_labels]{spec_labels()}} — one row per label
 \item \code{\link[=spec_coord]{spec_coord()}} — coordinate system properties
 \item \code{\link[=spec_plot]{spec_plot()}} — master summary joining all of the above
+\item \code{\link[=enrich_spec]{enrich_spec()}} — spec_layers plus explicit/default flags from ggplot_build()
 }
 }
 
@@ -64,13 +65,13 @@ automated testing, plot auditing, or grading workflows.
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/your-org/ggspec}
-  \item Report bugs at \url{https://github.com/your-org/ggspec/issues}
+  \item \url{https://github.com/clement-lee/ggspec}
+  \item Report bugs at \url{https://github.com/clement-lee/ggspec/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: First Last \email{first.last@example.com}
+\strong{Maintainer}: Clement Lee \email{clement.lee.tm@outlook.com} (\href{https://orcid.org/0000-0003-1785-8671}{ORCID})
 
 }
 \keyword{internal}
