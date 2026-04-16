@@ -22,10 +22,6 @@ Returns an integer indicating where \code{data} appears in the plot:
 \item \code{NA_integer_} — not found
 }
 }
-\details{
-Comparison is done with \code{\link[=identical]{identical()}}, so the data frame must be the exact
-same object (or an identical copy).
-}
 \examples{
 drv_summary <- dplyr::group_by(ggplot2::mpg, drv) |>
   dplyr::summarise(mean_displ = mean(displ))

@@ -1,15 +1,14 @@
 #' Compare two ggplot objects across multiple dimensions
 #'
-#' `equiv_plot()` is the high-level entry point. It runs the requested
-#' per-dimension `equiv_*()` checks and returns a combined `ggspec_result`.
-#' Accepts either ggplot objects or `ggspec_canon` objects (produced by
-#' [canon()]).
+#' `equiv_plot()` is equivalent to `compare_plots(mode = "strict")` — it
+#' performs a direct structural comparison with no canonicalisation beyond
+#' null-normalisation.  Plots that differ only in where data or mapping is
+#' specified (global vs per-layer) will fail `equiv_plot()` but may pass
+#' [compare_plots()] with `mode = "structural"` or looser.
 #'
-#' @param p1 The reference ggplot or `ggspec_canon` object.
-#' @param p2 The observed ggplot or `ggspec_canon` object to compare against
-#'   `p1`.
-#' @param check Character vector of checks to run. Any subset of
-#'   `c("layers", "aes", "scales", "facets", "labels", "coord")`.
+#' @param p1 The reference ggplot object.
+#' @param p2 The observed ggplot object to compare against `p1`.
+#' @param check Character vector of checks to run.
 #' @param ... Additional arguments passed to individual `equiv_*()` functions.
 #'
 #' @return A `ggspec_result` object. `as.logical()` on the result gives a
@@ -27,26 +26,9 @@ equiv_plot <- function(p1, p2,
                        check = c("layers", "aes", "scales", "facets",
                                  "labels", "coord"),
                        ...) {
-  .assert_gg_input(p1, "p1")
-  .assert_gg_input(p2, "p2")
-  check <- match.arg(check, several.ok = TRUE)
-
-  fns <- list(
-    layers = function() equiv_layers(p1, p2, ...),
-    aes    = function() equiv_aes(p1, p2, ...),
-    scales = function() equiv_scales(p1, p2, ...),
-    facets = function() equiv_facets(p1, p2),
-    labels = function() equiv_labels(p1, p2, ...),
-    coord  = function() equiv_coord(p1, p2)
-  )
-
-  results <- lapply(check, function(nm) {
-    r <- fns[[nm]]()
-    r$check <- nm
-    r
-  })
-
-  combine_results(results)
+  assert_ggplot(p1, "p1")
+  assert_ggplot(p2, "p2")
+  compare_plots(p1, p2, mode = "strict", check = check, ...)
 }
 
 # ---------------------------------------------------------------------------
@@ -72,24 +54,56 @@ equiv_plot <- function(p1, p2,
 #' equiv_layers(p1, p2)           # passes (p1's layers are a subset of p2)
 #' equiv_layers(p1, p2, exact = TRUE)  # fails (p2 has more layers)
 equiv_layers <- function(p1, p2, exact = FALSE, check_order = FALSE) {
-  l1 <- .get_layers_tbl(p1, "p1")
-  l2 <- .get_layers_tbl(p2, "p2")
+  l1_all <- .get_layers_tbl(p1, "p1")
+  l2_all <- .get_layers_tbl(p2, "p2")
 
-  detail <- .compare_layers_tbl(l1, l2)
+  # Geom/stat comparison is only for non-zero layers
+  l1 <- l1_all[l1_all$layer > 0L, , drop = FALSE]
+  l2 <- l2_all[l2_all$layer > 0L, , drop = FALSE]
 
+  detail <- .compare_layers_tbl(l1_all, l2_all)
+
+  # --- Geom/stat check -------------------------------------------------------
   if (exact) {
-    pass <- nrow(l1) == nrow(l2) &&
+    geom_pass <- nrow(l1) == nrow(l2) &&
       all(l1$geom == l2$geom) &&
       all(l1$stat == l2$stat)
-    msg <- if (pass) "Layer structure matches exactly." else
+    geom_msg <- if (geom_pass) "" else
       sprintf("Expected %d layer(s) [%s]; got %d [%s].",
               nrow(l1), paste(l1$geom, collapse = ", "),
               nrow(l2), paste(l2$geom, collapse = ", "))
   } else {
-    missing <- setdiff(l1$geom, l2$geom)
-    pass    <- length(missing) == 0L
-    msg     <- if (pass) "All expected geoms present." else
+    missing  <- setdiff(l1$geom, l2$geom)
+    geom_pass <- length(missing) == 0L
+    geom_msg  <- if (geom_pass) "" else
       sprintf("Missing geom(s): %s.", paste(missing, collapse = ", "))
+  }
+
+  # --- data_id check (all layers incl. layer 0) ------------------------------
+  # Compares per-layer dataset placement; NA vs non-NA flags a placement
+  # difference between global and local data supply.
+  data_id_msgs <- character(0L)
+  shared_layers <- intersect(l1_all$layer, l2_all$layer)
+  for (lyr in shared_layers) {
+    id1 <- l1_all$data_id[l1_all$layer == lyr]
+    id2 <- l2_all$data_id[l2_all$layer == lyr]
+    if (!.na_equal(id1, id2)) {
+      data_id_msgs <- c(data_id_msgs,
+        sprintf("data_id mismatch at layer %d (ref=%s, obs=%s)",
+                lyr,
+                if (is.na(id1)) "NA" else as.character(id1),
+                if (is.na(id2)) "NA" else as.character(id2)))
+    }
+  }
+  data_pass <- length(data_id_msgs) == 0L
+
+  # --- Combine ---------------------------------------------------------------
+  pass <- geom_pass && data_pass
+  msg  <- if (pass) {
+    "All expected geoms present."
+  } else {
+    paste(c(geom_msg, data_id_msgs)[nzchar(c(geom_msg, data_id_msgs))],
+          collapse = "; ")
   }
 
   new_ggspec_result(pass = pass, message = msg, detail = detail,
@@ -105,7 +119,7 @@ equiv_layers <- function(p1, p2, exact = FALSE, check_order = FALSE) {
 #' @param p1 Reference ggplot or `ggspec_canon` object.
 #' @param p2 Observed ggplot or `ggspec_canon` object.
 #' @param layer Integer vector of layer indices to compare. `NULL` (default)
-#'   compares all layers present in `p1`.
+#'   compares all layers present in `p1` (including layer 0).
 #' @param exact Logical. If `FALSE` (default), `p2` must contain at least the
 #'   mappings present in `p1` (additional mappings are allowed). If `TRUE`,
 #'   the mapping sets must be identical.
@@ -142,7 +156,7 @@ equiv_aes <- function(p1, p2, layer = NULL, exact = FALSE) {
               paste(sprintf("%s->%s (layer %d)",
                             bad$aesthetic,
                             bad$variable,
-                            bad$layer_idx),
+                            bad$layer),
                     collapse = ", "))
   }
 
@@ -178,7 +192,7 @@ equiv_scales <- function(p1, p2, aesthetics = NULL) {
     s2 <- s2[s2$aesthetic %in% aesthetics, , drop = FALSE]
   }
 
-  missing_aes <- setdiff(s1$aesthetic, s2$aesthetic)
+  missing_aes   <- setdiff(s1$aesthetic, s2$aesthetic)
   type_mismatch <- intersect(s1$aesthetic, s2$aesthetic)
   type_mismatch <- type_mismatch[
     s1$scale_type[match(type_mismatch, s1$aesthetic)] !=
@@ -322,7 +336,7 @@ equiv_coord <- function(p1, p2) {
 #' @param p1 Reference ggplot or `ggspec_canon` object.
 #' @param p2 Observed ggplot or `ggspec_canon` object.
 #' @param layer Integer: which layer index to compare (1-based). Compared by
-#'   position.
+#'   layer value (not row position).
 #' @param params Character vector of parameter names to check. `NULL`
 #'   (default) checks all parameters present in `p1`'s layer.
 #'
@@ -339,16 +353,20 @@ equiv_params <- function(p1, p2, layer = 1L, params = NULL) {
   l1 <- .get_layers_tbl(p1, "p1")
   l2 <- .get_layers_tbl(p2, "p2")
 
-  if (layer > nrow(l1) || layer > nrow(l2)) {
+  # Look up by layer value, not row index
+  r1 <- which(l1$layer == layer)
+  r2 <- which(l2$layer == layer)
+
+  if (length(r1) == 0L || length(r2) == 0L) {
     return(new_ggspec_result(
-      pass = FALSE,
+      pass    = FALSE,
       message = sprintf("Layer %d does not exist in both plots.", layer),
-      check = "params"
+      check   = "params"
     ))
   }
 
-  p1_params <- l1$params[[layer]]
-  p2_params <- l2$params[[layer]]
+  p1_params <- l1$params[[r1]]
+  p2_params <- l2$params[[r2]]
 
   keys <- if (!is.null(params)) params else names(p1_params)
   keys <- intersect(keys, names(p1_params))
@@ -425,17 +443,17 @@ equiv_data <- function(p1, p2, layer = NULL) {
 
 .compare_layers_tbl <- function(l1, l2) {
   tibble::tibble(
-    source    = c(rep("ref", nrow(l1)), rep("obs", nrow(l2))),
-    layer_idx = c(l1$layer_idx, l2$layer_idx),
-    geom      = c(l1$geom, l2$geom),
-    stat      = c(l1$stat, l2$stat),
-    position  = c(l1$position, l2$position)
+    source   = c(rep("ref", nrow(l1)), rep("obs", nrow(l2))),
+    layer    = c(l1$layer, l2$layer),
+    geom     = c(l1$geom, l2$geom),
+    stat     = c(l1$stat, l2$stat),
+    position = c(l1$position, l2$position)
   )
 }
 
 .compare_aes_tbl <- function(a1, a2) {
-  key1 <- paste(a1$layer_idx, a1$aesthetic, sep = "::")
-  key2 <- paste(a2$layer_idx, a2$aesthetic, sep = "::")
+  key1 <- paste(a1$layer, a1$aesthetic, sep = "::")
+  key2 <- paste(a2$layer, a2$aesthetic, sep = "::")
 
   missing_idx <- which(!key1 %in% key2)
   extra_idx   <- which(!key2 %in% key1)

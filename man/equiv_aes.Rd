@@ -12,7 +12,7 @@ equiv_aes(p1, p2, layer = NULL, exact = FALSE)
 \item{p2}{Observed ggplot or \code{ggspec_canon} object.}
 
 \item{layer}{Integer vector of layer indices to compare. \code{NULL} (default)
-compares all layers present in \code{p1}.}
+compares all layers present in \code{p1} (including layer 0).}
 
 \item{exact}{Logical. If \code{FALSE} (default), \code{p2} must contain at least the
 mappings present in \code{p1} (additional mappings are allowed). If \code{TRUE},

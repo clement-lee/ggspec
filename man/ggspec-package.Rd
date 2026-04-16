@@ -26,6 +26,7 @@ automated testing, plot auditing, or grading workflows.
 \item \code{\link[=spec_facets]{spec_facets()}} — facet type and variables
 \item \code{\link[=spec_labels]{spec_labels()}} — one row per label
 \item \code{\link[=spec_coord]{spec_coord()}} — coordinate system properties
+\item \code{\link[=spec_data]{spec_data()}} — one row per unique dataset (data_id, label)
 \item \code{\link[=spec_plot]{spec_plot()}} — master summary joining all of the above
 \item \code{\link[=enrich_spec]{enrich_spec()}} — spec_layers plus explicit/default flags from ggplot_build()
 }

@@ -11,7 +11,7 @@
 #'
 #' `canon()` is **transparent**: `x$changes` is a regular tibble listing
 #' every normalisation applied, with columns `rule`, `dimension`,
-#' `layer_idx`, `from`, and `to`.
+#' `layer`, `from`, and `to`.
 #'
 #' @param x A ggplot object, a [spec_plot()] tibble, or a `ggspec_canon`
 #'   object. If a `ggspec_canon` is supplied, its `$spec` is re-canonicalised
@@ -22,8 +22,10 @@
 #'     \item{`"strict"`}{Minimal normalisation: ensure all values are plain
 #'       character strings (no raw quosures) and list-column NULLs are
 #'       standardised. Safe to apply before any comparison.}
-#'     \item{`"structural"` (default)}{Includes strict, plus: sort layers
-#'       into a canonical order by `(geom, stat)`; normalise geom/stat
+#'     \item{`"structural"` (default)}{Includes strict, plus: fold global
+#'       data/mapping into each non-zero layer so that placement differences
+#'       (global vs per-layer) become transparent; sort layers into a
+#'       canonical order by `(geom, stat)`; normalise geom/stat
 #'       representation.}
 #'     \item{`"visual"`}{Includes structural, plus: absorb `coord_flip()`
 #'       by swapping `x`/`y` aesthetics and replacing the coord with
@@ -39,7 +41,7 @@
 #'   \describe{
 #'     \item{`spec`}{A [spec_plot()] tibble after canonicalisation.}
 #'     \item{`changes`}{A tibble with columns `rule` (chr), `dimension` (chr),
-#'       `layer_idx` (int or `NA`), `from` (chr), `to` (chr).  Zero rows means
+#'       `layer` (int or `NA`), `from` (chr), `to` (chr).  Zero rows means
 #'       the input was already in canonical form.}
 #'     \item{`mode`}{The mode string used.}
 #'     \item{`original`}{The [spec_plot()] tibble before canonicalisation.}
@@ -53,7 +55,7 @@
 #'   ggplot2::geom_point()
 #' c1 <- canon(p1)
 #' c1$changes        # records the layer reordering
-#' c1$spec$geom      # now alphabetical: "point", "smooth"
+#' c1$spec$geom      # layer 0 NA, then alphabetical: "point", "smooth"
 #'
 #' # Idempotency
 #' c2 <- canon(c1)
@@ -110,6 +112,7 @@ print.ggspec_canon <- function(x, ...) {
     .rule_normalise_nulls
   )
   structural_rules <- c(strict_rules, list(
+    .rule_fold_global,
     .rule_geom_col_to_bar,
     .rule_layer_order
   ))
@@ -137,20 +140,102 @@ print.ggspec_canon <- function(x, ...) {
 # ---------------------------------------------------------------------------
 
 # Rule: normalise_nulls
-# Ensure list-column entries that are empty lists are consistently NULL-free.
-# This is a no-op for well-formed spec_plot() output but guards against edge
-# cases from manual construction.
 .rule_normalise_nulls <- function(spec, changes) {
-  # Currently a no-op placeholder — spec_plot() already produces clean output.
   list(spec = spec, changes = changes)
 }
 
+# Rule: fold_global
+# Propagates the global data_id and mapping (layer 0) into every non-zero
+# layer that uses the global data/mapping, then clears layer 0.
+# This makes plots that differ only in WHERE data/mapping is specified
+# (ggplot() vs geom_*()) compare as identical after canonicalisation.
+.rule_fold_global <- function(spec, changes) {
+  layer0_row  <- which(spec$layer == 0L)
+  nonzero_idx <- which(spec$layer > 0L)
+
+  if (length(layer0_row) == 0L || length(nonzero_idx) == 0L) {
+    return(list(spec = spec, changes = changes))
+  }
+
+  global_data_id <- spec$data_id[[layer0_row]]
+  global_mapping <- spec$mapping[[layer0_row]]
+
+  data_changed    <- FALSE
+  mapping_changed <- FALSE
+
+  # 1. Propagate data_id: layers with NA data_id inherit the global one
+  if (!is.na(global_data_id)) {
+    need_data <- nonzero_idx[is.na(spec$data_id[nonzero_idx])]
+    if (length(need_data) > 0L) {
+      spec$data_id[need_data] <- global_data_id
+      data_changed <- TRUE
+    }
+  }
+
+  # 2. Propagate mapping: inherit_aes layers receive the global mapping
+  if (length(global_mapping) > 0L) {
+    for (ri in nonzero_idx) {
+      if (!isTRUE(spec$inherit_aes[[ri]])) next
+      local_m <- spec$mapping[[ri]]
+      # merge: global first, local overrides
+      merged  <- global_mapping
+      merged[names(local_m)] <- local_m
+      spec$mapping[[ri]] <- merged
+      mapping_changed <- TRUE
+    }
+    # Update aes_long for affected rows
+    if ("aes_long" %in% names(spec) && mapping_changed) {
+      for (ri in nonzero_idx) {
+        if (!isTRUE(spec$inherit_aes[[ri]])) next
+        tbl    <- spec$aes_long[[ri]]
+        merged <- spec$mapping[[ri]]
+        # Rebuild from the merged mapping using the existing geom name
+        if (length(merged) > 0L) {
+          tbl <- tibble::tibble(
+            layer     = spec$layer[[ri]],
+            geom      = spec$geom[[ri]],
+            aesthetic = names(merged),
+            variable  = unname(merged),
+            source    = ifelse(
+              names(merged) %in% names(global_mapping) &
+              names(merged) %in% names(spec$mapping[[ri]]),
+              "resolved", "local"
+            )
+          )
+        }
+        spec$aes_long[[ri]] <- tbl
+      }
+    }
+  }
+
+  if (!data_changed && !mapping_changed) {
+    return(list(spec = spec, changes = changes))
+  }
+
+  # 3. Clear layer 0
+  spec$data_id[[layer0_row]] <- NA_integer_
+  spec$mapping[[layer0_row]] <- character(0)
+  if ("aes_long" %in% names(spec)) {
+    spec$aes_long[[layer0_row]] <- .empty_aes_tbl()
+  }
+
+  change <- tibble::tibble(
+    rule      = "fold_global",
+    dimension = paste(
+      c(if (data_changed) "data_id", if (mapping_changed) "mapping"),
+      collapse = " + "
+    ),
+    layer     = NA_integer_,
+    from      = "global placement",
+    to        = "resolved into layers"
+  )
+  list(spec = spec, changes = dplyr::bind_rows(changes, change))
+}
+
 # Rule: geom_col_to_bar
-# geom_col() uses GeomCol internally; normalise to geom_bar(stat = "identity")
-# so that geom_col() and geom_bar(stat = "identity") compare as equal.
 .rule_geom_col_to_bar <- function(spec, changes) {
-  if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
-  col_rows <- which(spec$geom == "col")
+  nonzero <- !is.na(spec$geom)
+  col_rows <- which(nonzero & spec$geom == "col")
   if (length(col_rows) == 0L) return(list(spec = spec, changes = changes))
 
   spec$geom[col_rows] <- "bar"
@@ -158,7 +243,7 @@ print.ggspec_canon <- function(x, ...) {
   new_changes <- dplyr::bind_rows(changes, tibble::tibble(
     rule      = rep("geom_col_to_bar", length(col_rows)),
     dimension = rep("geom", length(col_rows)),
-    layer_idx = as.integer(col_rows),
+    layer     = spec$layer[col_rows],
     from      = rep("col", length(col_rows)),
     to        = rep("bar", length(col_rows))
   ))
@@ -166,51 +251,53 @@ print.ggspec_canon <- function(x, ...) {
 }
 
 # Rule: layer_order
-# Sort layers by (geom, stat) alphabetically. Records the old-vs-new permutation.
+# Sort non-zero layers by (geom, stat) alphabetically. Layer 0 stays first.
 .rule_layer_order <- function(spec, changes) {
-  if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
+  layer0   <- spec[spec$layer == 0L, , drop = FALSE]
+  nonzero  <- spec[spec$layer > 0L,  , drop = FALSE]
+  if (nrow(nonzero) == 0L) return(list(spec = spec, changes = changes))
 
-  new_order <- order(spec$geom, spec$stat)
-  if (identical(new_order, seq_len(nrow(spec)))) {
-    # Already in canonical order
+  new_order <- order(nonzero$geom, nonzero$stat)
+  if (identical(new_order, seq_len(nrow(nonzero)))) {
     return(list(spec = spec, changes = changes))
   }
 
-  old_idx <- spec$layer_idx
-  spec    <- spec[new_order, , drop = FALSE]
-  # Update layer_idx to reflect canonical position
-  spec$layer_idx <- seq_len(nrow(spec))
-  # Update layer_idx inside each aes_long sub-table
-  if ("aes_long" %in% names(spec)) {
-    spec$aes_long <- lapply(seq_len(nrow(spec)), function(i) {
-      tbl <- spec$aes_long[[i]]
-      tbl$layer_idx <- i
+  old_layers <- nonzero$layer
+  nonzero    <- nonzero[new_order, , drop = FALSE]
+  # Renumber layers sequentially after sort
+  nonzero$layer <- seq_len(nrow(nonzero))
+  if ("aes_long" %in% names(nonzero)) {
+    nonzero$aes_long <- lapply(seq_len(nrow(nonzero)), function(i) {
+      tbl        <- nonzero$aes_long[[i]]
+      tbl$layer  <- i
       tbl
     })
   }
 
+  spec <- dplyr::bind_rows(layer0, nonzero)
+
   change <- tibble::tibble(
     rule      = "layer_order",
-    dimension = "layer_idx",
-    layer_idx = NA_integer_,
-    from      = paste(old_idx[new_order], collapse = ","),
-    to        = paste(seq_len(nrow(spec)), collapse = ",")
+    dimension = "layer",
+    layer     = NA_integer_,
+    from      = paste(old_layers[new_order], collapse = ","),
+    to        = paste(seq_len(nrow(nonzero)), collapse = ",")
   )
   list(spec = spec, changes = dplyr::bind_rows(changes, change))
 }
 
 # Rule: coord_flip
-# If the coord is "flip", swap x <-> y in every layer's mapping and
-# aes_long, then set coord_type to "cartesian".
 .rule_coord_flip <- function(spec, changes) {
   if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
 
-  coord <- spec$coord[[1L]]
+  # Find coord from first non-zero layer (or any row if only layer 0 present)
+  coord_row <- if (any(spec$layer > 0L)) which(spec$layer > 0L)[1L] else 1L
+  coord <- spec$coord[[coord_row]]
   if (!identical(coord$coord_type, "flip")) {
     return(list(spec = spec, changes = changes))
   }
 
-  # Swap x <-> y in mapping list-column
+  # Swap x <-> y in mapping list-column (all rows)
   spec$mapping <- lapply(spec$mapping, function(m) {
     has_x <- "x" %in% names(m) && !is.na(m[["x"]])
     has_y <- "y" %in% names(m) && !is.na(m[["y"]])
@@ -231,8 +318,8 @@ print.ggspec_canon <- function(x, ...) {
     spec$aes_long <- lapply(spec$aes_long, function(tbl) {
       x_rows <- tbl$aesthetic == "x"
       y_rows <- tbl$aesthetic == "y"
-      has_x <- any(x_rows)
-      has_y <- any(y_rows)
+      has_x  <- any(x_rows)
+      has_y  <- any(y_rows)
       if (has_x && has_y) {
         x_vars <- tbl$variable[x_rows]
         y_vars <- tbl$variable[y_rows]
@@ -247,7 +334,6 @@ print.ggspec_canon <- function(x, ...) {
     })
   }
 
-  # Replace coord with cartesian in all rows
   new_coord <- coord
   new_coord$coord_type <- "cartesian"
   spec$coord <- rep(list(new_coord), nrow(spec))
@@ -255,7 +341,7 @@ print.ggspec_canon <- function(x, ...) {
   change <- tibble::tibble(
     rule      = "coord_flip",
     dimension = "coord + mapping",
-    layer_idx = NA_integer_,
+    layer     = NA_integer_,
     from      = "coord_flip with x/y aesthetics",
     to        = "coord_cartesian with x/y swapped"
   )
@@ -263,22 +349,21 @@ print.ggspec_canon <- function(x, ...) {
 }
 
 # Rule: scale_name_to_labels
-# If any scale has a non-NA name, move it to the labels table (if not already
-# overridden there) and set name to NA in the scales table.
 .rule_scale_name_to_labels <- function(spec, changes) {
   if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
 
-  scales_tbl <- spec$scales[[1L]]
-  labels_tbl <- spec$labels[[1L]]
+  # Use scales/labels from first non-zero row (or row 1 if only layer 0)
+  ref_row <- if (any(spec$layer > 0L)) which(spec$layer > 0L)[1L] else 1L
+  scales_tbl <- spec$scales[[ref_row]]
+  labels_tbl <- spec$labels[[ref_row]]
   new_changes <- changes
 
   named_rows <- which(!is.na(scales_tbl$name))
   if (length(named_rows) == 0L) return(list(spec = spec, changes = changes))
 
   for (i in named_rows) {
-    aes_str  <- scales_tbl$aesthetic[[i]]
-    nm       <- scales_tbl$name[[i]]
-    # Only promote to labels if not already set
+    aes_str <- scales_tbl$aesthetic[[i]]
+    nm      <- scales_tbl$name[[i]]
     existing_idx <- which(labels_tbl$aesthetic == aes_str)
     if (length(existing_idx) == 0L) {
       labels_tbl <- dplyr::bind_rows(
@@ -286,21 +371,18 @@ print.ggspec_canon <- function(x, ...) {
         tibble::tibble(aesthetic = aes_str, label = nm)
       )
     } else {
-      # Always overwrite — an explicit scale name takes precedence over any
-      # automatic (fallback) label derived from the aesthetic variable name.
       labels_tbl$label[existing_idx] <- nm
     }
     new_changes <- dplyr::bind_rows(new_changes, tibble::tibble(
       rule      = "scale_name_to_labels",
       dimension = "scales/labels",
-      layer_idx = NA_integer_,
+      layer     = NA_integer_,
       from      = sprintf("scale[%s]$name = '%s'", aes_str, nm),
       to        = sprintf("labels[%s] = '%s'", aes_str, nm)
     ))
     scales_tbl$name[[i]] <- NA_character_
   }
 
-  # Propagate updated tables to all rows
   spec$scales <- rep(list(scales_tbl), nrow(spec))
   spec$labels <- rep(list(labels_tbl), nrow(spec))
 
@@ -308,13 +390,11 @@ print.ggspec_canon <- function(x, ...) {
 }
 
 # Rule: default_coord
-# If coord is "cartesian" with NULL limits and default expand/clip, mark it
-# as "default" so two plots that differ only in explicit vs implicit cartesian
-# coord compare as equal.
 .rule_default_coord <- function(spec, changes) {
   if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
 
-  coord <- spec$coord[[1L]]
+  ref_row <- if (any(spec$layer > 0L)) which(spec$layer > 0L)[1L] else 1L
+  coord <- spec$coord[[ref_row]]
   xlim_null <- is.null(coord$xlim[[1L]])
   ylim_null <- is.null(coord$ylim[[1L]])
   is_default <- identical(coord$coord_type, "cartesian") &&
@@ -330,7 +410,7 @@ print.ggspec_canon <- function(x, ...) {
   change <- tibble::tibble(
     rule      = "default_coord",
     dimension = "coord",
-    layer_idx = NA_integer_,
+    layer     = NA_integer_,
     from      = "cartesian (explicit or default)",
     to        = "default"
   )
@@ -338,23 +418,21 @@ print.ggspec_canon <- function(x, ...) {
 }
 
 # Rule: histogram_bin_param (pedagogical)
-# Flags histogram layers that use bins= vs binwidth= so grading can accept
-# either form. Records which parameter was found; does not convert values.
 .rule_histogram_bin_param <- function(spec, changes) {
   if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
 
   new_changes <- changes
-  for (i in seq_len(nrow(spec))) {
-    # geom_histogram() uses GeomBar + StatBin: identify by stat = "bin"
-    if (!identical(spec$stat[[i]], "bin")) next
-    params <- spec$params[[i]]
+  nonzero <- spec[spec$layer > 0L, , drop = FALSE]
+  for (i in seq_len(nrow(nonzero))) {
+    if (!identical(nonzero$stat[[i]], "bin")) next
+    params <- nonzero$params[[i]]
     has_bins     <- !is.null(params[["bins"]])
     has_binwidth <- !is.null(params[["binwidth"]])
     if (has_bins && !has_binwidth) {
       new_changes <- dplyr::bind_rows(new_changes, tibble::tibble(
         rule      = "histogram_bin_param",
         dimension = "params",
-        layer_idx = i,
+        layer     = nonzero$layer[[i]],
         from      = sprintf("bins = %s", params[["bins"]]),
         to        = "flexible_bin_param (bins accepted)"
       ))
@@ -364,22 +442,21 @@ print.ggspec_canon <- function(x, ...) {
 }
 
 # Rule: after_stat_flag (pedagogical)
-# Detects aes(y = after_stat(density)) patterns and records their presence.
-# Does not modify the spec; purely informational for grading.
 .rule_after_stat_flag <- function(spec, changes) {
   if (nrow(spec) == 0L || !"aes_long" %in% names(spec)) {
     return(list(spec = spec, changes = changes))
   }
 
   new_changes <- changes
-  for (i in seq_len(nrow(spec))) {
-    tbl <- spec$aes_long[[i]]
+  nonzero <- spec[spec$layer > 0L, , drop = FALSE]
+  for (i in seq_len(nrow(nonzero))) {
+    tbl <- nonzero$aes_long[[i]]
     after_stat_rows <- tbl[grepl("after_stat", tbl$variable, fixed = TRUE), , drop = FALSE]
     if (nrow(after_stat_rows) > 0L) {
       new_changes <- dplyr::bind_rows(new_changes, tibble::tibble(
         rule      = "after_stat_flag",
         dimension = "aes",
-        layer_idx = i,
+        layer     = nonzero$layer[[i]],
         from      = paste(after_stat_rows$variable, collapse = "; "),
         to        = "after_stat_mapping_present"
       ))
@@ -398,7 +475,7 @@ print.ggspec_canon <- function(x, ...) {
   tibble::tibble(
     rule      = character(),
     dimension = character(),
-    layer_idx = integer(),
+    layer     = integer(),
     from      = character(),
     to        = character()
   )

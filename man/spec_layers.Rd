@@ -18,26 +18,29 @@ in the \code{mapping} list-column:
 }}
 }
 \value{
-A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per layer and columns:
+A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per layer (plus a row 0 for the
+global context) and columns:
 \describe{
-\item{\code{layer_idx}}{Integer layer index (1-based).}
-\item{\code{geom}}{Geom name, e.g. \code{"point"}, \code{"smooth"}.}
-\item{\code{stat}}{Stat name, e.g. \code{"identity"}, \code{"smooth"}.}
-\item{\code{position}}{Position adjustment name, e.g. \code{"identity"}, \code{"dodge"}.}
+\item{\code{layer}}{Integer layer index. \code{0} = global context; \verb{1..N} =
+regular layers (1-based).}
+\item{\code{geom}}{Geom name, e.g. \code{"point"}, \code{"smooth"}. \code{NA} for layer 0.}
+\item{\code{stat}}{Stat name, e.g. \code{"identity"}, \code{"smooth"}. \code{NA} for
+layer 0.}
+\item{\code{position}}{Position adjustment name. \code{NA} for layer 0.}
 \item{\code{mapping}}{List-column of named character vectors: aesthetic to
 variable label.}
 \item{\code{params}}{List-column of named lists of non-aesthetic layer
-parameters.}
-\item{\code{inherit_aes}}{Logical: does the layer inherit the global mapping?}
-\item{\code{data_source}}{Character: \code{"global"} if the layer inherits the
-plot-level data, \code{"local"} if it carries its own data frame or
-data-transformation function.}
+parameters. Empty list for layer 0.}
+\item{\code{inherit_aes}}{Logical: does the layer inherit the global
+mapping? \code{NA} for layer 0.}
+\item{\code{data_id}}{Integer: identifier of the dataset used, referencing
+\code{\link[=spec_data]{spec_data()}}. \code{NA} for layers that inherit the global data.}
 }
 }
 \description{
-Returns one row per layer in the plot, with columns describing the geom,
-stat, position adjustment, aesthetic mappings, non-aesthetic parameters,
-and whether the layer inherits the global aesthetic mapping.
+Returns one row per layer in the plot (including a row 0 for the global
+context), with columns describing the geom, stat, position adjustment,
+aesthetic mappings, non-aesthetic parameters, and data source.
 }
 \examples{
 p <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +

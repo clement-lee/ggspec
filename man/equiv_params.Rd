@@ -12,7 +12,7 @@ equiv_params(p1, p2, layer = 1L, params = NULL)
 \item{p2}{Observed ggplot or \code{ggspec_canon} object.}
 
 \item{layer}{Integer: which layer index to compare (1-based). Compared by
-position.}
+layer value (not row position).}
 
 \item{params}{Character vector of parameter names to check. \code{NULL}
 (default) checks all parameters present in \code{p1}'s layer.}

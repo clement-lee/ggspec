@@ -12,13 +12,11 @@ equiv_plot(
 )
 }
 \arguments{
-\item{p1}{The reference ggplot or \code{ggspec_canon} object.}
+\item{p1}{The reference ggplot object.}
 
-\item{p2}{The observed ggplot or \code{ggspec_canon} object to compare against
-\code{p1}.}
+\item{p2}{The observed ggplot object to compare against \code{p1}.}
 
-\item{check}{Character vector of checks to run. Any subset of
-\code{c("layers", "aes", "scales", "facets", "labels", "coord")}.}
+\item{check}{Character vector of checks to run.}
 
 \item{...}{Additional arguments passed to individual \verb{equiv_*()} functions.}
 }
@@ -27,10 +25,11 @@ A \code{ggspec_result} object. \code{as.logical()} on the result gives a
 single \code{TRUE}/\code{FALSE}.
 }
 \description{
-\code{equiv_plot()} is the high-level entry point. It runs the requested
-per-dimension \verb{equiv_*()} checks and returns a combined \code{ggspec_result}.
-Accepts either ggplot objects or \code{ggspec_canon} objects (produced by
-\code{\link[=canon]{canon()}}).
+\code{equiv_plot()} is equivalent to \code{compare_plots(mode = "strict")} — it
+performs a direct structural comparison with no canonicalisation beyond
+null-normalisation.  Plots that differ only in where data or mapping is
+specified (global vs per-layer) will fail \code{equiv_plot()} but may pass
+\code{\link[=compare_plots]{compare_plots()}} with \code{mode = "structural"} or looser.
 }
 \examples{
 ref <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +

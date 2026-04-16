@@ -17,8 +17,10 @@ applied:
 \item{\code{"strict"}}{Minimal normalisation: ensure all values are plain
 character strings (no raw quosures) and list-column NULLs are
 standardised. Safe to apply before any comparison.}
-\item{\code{"structural"} (default)}{Includes strict, plus: sort layers
-into a canonical order by \verb{(geom, stat)}; normalise geom/stat
+\item{\code{"structural"} (default)}{Includes strict, plus: fold global
+data/mapping into each non-zero layer so that placement differences
+(global vs per-layer) become transparent; sort layers into a
+canonical order by \verb{(geom, stat)}; normalise geom/stat
 representation.}
 \item{\code{"visual"}}{Includes structural, plus: absorb \code{coord_flip()}
 by swapping \code{x}/\code{y} aesthetics and replacing the coord with
@@ -35,7 +37,7 @@ An object of class \code{ggspec_canon}, a named list with components:
 \describe{
 \item{\code{spec}}{A \code{\link[=spec_plot]{spec_plot()}} tibble after canonicalisation.}
 \item{\code{changes}}{A tibble with columns \code{rule} (chr), \code{dimension} (chr),
-\code{layer_idx} (int or \code{NA}), \code{from} (chr), \code{to} (chr).  Zero rows means
+\code{layer} (int or \code{NA}), \code{from} (chr), \code{to} (chr).  Zero rows means
 the input was already in canonical form.}
 \item{\code{mode}}{The mode string used.}
 \item{\code{original}}{The \code{\link[=spec_plot]{spec_plot()}} tibble before canonicalisation.}
@@ -54,7 +56,7 @@ specification as \code{canon(x)}, and the second call records zero changes.
 
 \code{canon()} is \strong{transparent}: \code{x$changes} is a regular tibble listing
 every normalisation applied, with columns \code{rule}, \code{dimension},
-\code{layer_idx}, \code{from}, and \code{to}.
+\code{layer}, \code{from}, and \code{to}.
 }
 \examples{
 # Layer ordering is canonical in structural mode
@@ -63,7 +65,7 @@ p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
   ggplot2::geom_point()
 c1 <- canon(p1)
 c1$changes        # records the layer reordering
-c1$spec$geom      # now alphabetical: "point", "smooth"
+c1$spec$geom      # layer 0 NA, then alphabetical: "point", "smooth"
 
 # Idempotency
 c2 <- canon(c1)

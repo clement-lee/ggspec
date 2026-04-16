@@ -19,6 +19,7 @@
 #' - [spec_facets()] — facet type and variables
 #' - [spec_labels()] — one row per label
 #' - [spec_coord()] — coordinate system properties
+#' - [spec_data()] — one row per unique dataset (data_id, label)
 #' - [spec_plot()] — master summary joining all of the above
 #' - [enrich_spec()] — spec_layers plus explicit/default flags from ggplot_build()
 #'

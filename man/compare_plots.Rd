@@ -18,11 +18,12 @@ compare_plots(
 \item{p2}{The observed ggplot object to compare against \code{p1}.}
 
 \item{mode}{Canonicalisation mode passed to \code{\link[=canon]{canon()}}.  One of
-\code{"strict"}, \code{"structural"} (default), \code{"visual"}, or \code{"pedagogical"}.}
+\code{"strict"} (default \code{"structural"}), \code{"structural"} (default),
+\code{"visual"}, or \code{"pedagogical"}.}
 
-\item{check}{Character vector of checks to run; passed to \code{\link[=equiv_plot]{equiv_plot()}}.}
+\item{check}{Character vector of checks to run.}
 
-\item{...}{Additional arguments passed to \code{\link[=equiv_plot]{equiv_plot()}}.}
+\item{...}{Additional arguments passed to individual \verb{equiv_*()} functions.}
 }
 \value{
 A \code{ggspec_compare} object (extends \code{ggspec_result}) with the usual
@@ -37,25 +38,23 @@ A \code{ggspec_compare} object (extends \code{ggspec_result}) with the usual
 \code{compare_plots()} is the high-level, canonicalisation-aware entry point for
 comparing two ggplot objects. It applies \code{\link[=canon]{canon()}} to both inputs before
 running the structural checks, so plots that are semantically equivalent
-but expressed differently (e.g. different layer order, \code{coord_flip()} vs
-swapped aesthetics, scale \code{name} vs \code{labs()}) are detected as equal.
+but expressed differently — different data/mapping placement, different
+layer order, \code{coord_flip()} vs swapped aesthetics, scale \code{name} vs
+\code{labs()} — are detected as equal.
 }
 \details{
-For direct, non-canonicalising comparison use \code{\link[=equiv_plot]{equiv_plot()}} instead.
+\code{\link[=equiv_plot]{equiv_plot()}} is equivalent to \code{compare_plots(mode = "strict")}.
 }
 \examples{
-# Layer order equivalence in structural mode
-p1 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
-  ggplot2::geom_point() + ggplot2::geom_smooth()
-p2 <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
-  ggplot2::geom_smooth() + ggplot2::geom_point()
-as.logical(compare_plots(p1, p2, check = "layers"))  # TRUE
+# Global vs per-layer data placement: fails at strict, passes at structural
+library(ggplot2)
+p1 <- ggplot(mpg, aes(displ, hwy)) + geom_point()
+p2 <- ggplot(mpg) + geom_point(aes(displ, hwy))
+as.logical(compare_plots(p1, p2, mode = "strict"))      # FALSE
+as.logical(compare_plots(p1, p2, mode = "structural"))  # TRUE
 
-# coord_flip / aes-swap equivalence in visual mode
-d <- data.frame(g = letters[1:3], v = c(1, 2, 3))
-pa <- ggplot2::ggplot(d, ggplot2::aes(g, v)) +
-  ggplot2::geom_col() + ggplot2::coord_flip()
-pb <- ggplot2::ggplot(d, ggplot2::aes(v, g)) +
-  ggplot2::geom_col()
-as.logical(compare_plots(pa, pb, mode = "visual", check = c("layers", "coord")))
+# Layer order equivalence in structural mode
+p3 <- ggplot(mpg, aes(displ, hwy)) + geom_point() + geom_smooth()
+p4 <- ggplot(mpg, aes(displ, hwy)) + geom_smooth() + geom_point()
+as.logical(compare_plots(p3, p4, check = "layers"))  # TRUE
 }

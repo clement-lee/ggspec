@@ -145,7 +145,6 @@ has_layer <- function(p, geom = NULL, stat = NULL) {
     return(local_chr)
   }
   if (identical(inherit, TRUE)) {
-    # global only
     return(c(global_chr, local_chr[!names(local_chr) %in% names(global_chr)]))
   }
   # "resolve": local overrides global
@@ -158,7 +157,7 @@ has_layer <- function(p, geom = NULL, stat = NULL) {
 `%||%` <- rlang::`%||%`
 
 # ---------------------------------------------------------------------------
-# Convenience wrappers assimilating user's preliminary functions
+# Convenience wrappers
 # ---------------------------------------------------------------------------
 
 #' Extract all aesthetic mappings as a flat data frame
@@ -221,9 +220,6 @@ mapping_exists <- function(p, aesthetic, variable) {
 #' - `i` (positive integer) — `p$layers[[i]]$data`
 #' - `NA_integer_` — not found
 #'
-#' Comparison is done with [identical()], so the data frame must be the exact
-#' same object (or an identical copy).
-#'
 #' @param p A ggplot object.
 #' @param data A data frame to search for.
 #' @return An integer scalar.
@@ -268,8 +264,8 @@ layer_data_index <- function(p, data) {
 .get_layers_tbl <- function(x, arg_name = "x") {
   if (inherits(x, "ggspec_canon")) {
     keep <- intersect(names(x$spec),
-                      c("layer_idx", "geom", "stat", "position",
-                        "mapping", "params", "inherit_aes", "data_source"))
+                      c("layer", "geom", "stat", "position",
+                        "mapping", "params", "inherit_aes", "data_id"))
     x$spec[, keep, drop = FALSE]
   } else {
     assert_ggplot(x, arg_name)
@@ -282,7 +278,7 @@ layer_data_index <- function(p, data) {
 .get_aes_tbl <- function(x, layer = NULL, arg_name = "x") {
   if (inherits(x, "ggspec_canon")) {
     tbl <- dplyr::bind_rows(x$spec$aes_long)
-    if (!is.null(layer)) tbl <- tbl[tbl$layer_idx %in% as.integer(layer), , drop = FALSE]
+    if (!is.null(layer)) tbl <- tbl[tbl$layer %in% as.integer(layer), , drop = FALSE]
     tbl
   } else {
     assert_ggplot(x, arg_name)
@@ -295,7 +291,9 @@ layer_data_index <- function(p, data) {
 .get_scales_tbl <- function(x, arg_name = "x") {
   if (inherits(x, "ggspec_canon")) {
     if (nrow(x$spec) == 0L) return(.empty_scales_tbl())
-    x$spec$scales[[1L]]
+    # Use scales from first non-zero row if available
+    ref_row <- if (any(x$spec$layer > 0L)) which(x$spec$layer > 0L)[1L] else 1L
+    x$spec$scales[[ref_row]]
   } else {
     assert_ggplot(x, arg_name)
     spec_scales(x)
@@ -311,7 +309,8 @@ layer_data_index <- function(p, data) {
                             cols = NA_character_, scales = NA_character_,
                             space = NA_character_, labeller = NA_character_))
     }
-    x$spec$facets[[1L]]
+    ref_row <- if (any(x$spec$layer > 0L)) which(x$spec$layer > 0L)[1L] else 1L
+    x$spec$facets[[ref_row]]
   } else {
     assert_ggplot(x, arg_name)
     spec_facets(x)
@@ -323,7 +322,8 @@ layer_data_index <- function(p, data) {
 .get_labels_tbl <- function(x, arg_name = "x") {
   if (inherits(x, "ggspec_canon")) {
     if (nrow(x$spec) == 0L) return(.empty_labels_tbl())
-    x$spec$labels[[1L]]
+    ref_row <- if (any(x$spec$layer > 0L)) which(x$spec$layer > 0L)[1L] else 1L
+    x$spec$labels[[ref_row]]
   } else {
     assert_ggplot(x, arg_name)
     spec_labels(x)
@@ -339,7 +339,8 @@ layer_data_index <- function(p, data) {
                             xlim = list(NULL), ylim = list(NULL),
                             expand = TRUE, clip = "on"))
     }
-    x$spec$coord[[1L]]
+    ref_row <- if (any(x$spec$layer > 0L)) which(x$spec$layer > 0L)[1L] else 1L
+    x$spec$coord[[ref_row]]
   } else {
     assert_ggplot(x, arg_name)
     spec_coord(x)

@@ -13,11 +13,13 @@ spec_plot(p, inherit = "resolve")
 global/local aesthetic mapping inheritance.}
 }
 \value{
-A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per layer and columns from
-\code{\link[=spec_layers]{spec_layers()}} plus the following additional list-columns:
+A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per layer (plus layer 0) and
+columns from \code{\link[=spec_layers]{spec_layers()}} plus the following additional list-columns:
 \describe{
 \item{\code{aes_long}}{List-column: the \code{\link[=spec_aes]{spec_aes()}} data frame for that
 layer (for convenient access without re-calling \code{\link[=spec_aes]{spec_aes()}}).}
+\item{\code{datasets}}{List-column: the \code{\link[=spec_data]{spec_data()}} data frame (repeated
+for every row).}
 \item{\code{scales}}{List-column: the full \code{\link[=spec_scales]{spec_scales()}} data frame,
 repeated for each layer.}
 \item{\code{facets}}{List-column: the \code{\link[=spec_facets]{spec_facets()}} data frame, repeated
@@ -27,14 +29,12 @@ for each layer.}
 \item{\code{labels}}{List-column: the \code{\link[=spec_labels]{spec_labels()}} data frame, repeated
 for each layer.}
 }
-
-If the plot has no layers, a zero-row tibble with the correct schema is
-returned.
 }
 \description{
 Calls all \verb{spec_*()} functions and joins their results into a single
-wide-format data frame with one row per layer. Scale, facet, coordinate,
-and label information are repeated across all layer rows.
+wide-format data frame with one row per layer (including a row 0 for the
+global context). Scale, facet, coordinate, and label information are
+repeated across all layer rows.
 }
 \examples{
 p <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +

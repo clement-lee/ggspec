@@ -12,13 +12,33 @@ ggspec was motivated by two gaps in the existing ecosystem:
 | Framework-agnostic grading assertion | ✗ | ✗ | ✓ |
 | Canonicalisation (coord_flip, geom_col, etc.) | ✗ | ✗ | ✓ |
 | Build-enriched default/explicit detection | ✗ | partial | ✓ (`enrich_spec`) |
+| `..var..` / `after_stat()` normalisation | ✗ | ✗ | ✗ pending |
+| Scale-transform vs mapping-transform equivalence | ✗ | ✗ | ✗ pending |
 | Theme extraction + comparison | ✗ | partial | ✗ pending |
 | Guide/legend extraction + comparison | ✗ | ✗ | ✗ pending |
 | Cross-geom stat equivalence | ✗ | ✗ | ✗ pending |
 
 The core extraction, comparison, and grading-workflow tiers are feature-complete.
-The remaining work is in three clusters: **new spec dimensions** (theme, guides),
-**enrich_spec() integration**, and **advanced equivalence patterns**.
+The following edge cases have been verified as already handled:
+- **Positional vs named `aes()`** (`aes(displ, hwy)` vs `aes(x=displ, y=hwy)`): ggplot2
+  normalises to named form at construction time; `spec_aes()` sees identical output.
+- **`colour` vs `color` aliases**: ggplot2 normalises `color` → `colour` at construction
+  time; `p$mapping` stores only `colour`.
+- **`group` aesthetic**: treated as a regular aesthetic by `spec_aes()`; global vs local
+  group mapping is transparent via the standard inheritance resolution.
+- **Facets**: captured by `spec_facets()` and compared by `equiv_facets()`;
+  `compare_plots()` includes them in all check vectors.
+- **Multiple datasets (global vs per-layer)**: `spec_layers()$data_source` records the
+  placement but all `equiv_*` functions ignore it by design.
+
+The remaining work is in five clusters, covered in sections 1–8:
+- **§1** Multi-dataset layer verification (`equiv_layer_data`)
+- **§2** Cross-geom stat equivalence (geom_count vs geom_point + count)
+- **§3** `enrich_spec()` integration (`equiv_explicit_params`, numeric tolerance)
+- **§4** Pedagogical-mode extensions (bins/binwidth, `has_after_stat`, `..var..` normalisation)
+- **§5** Scale-transform vs mapping-transform equivalence
+- **§6** New spec dimensions (theme, guides)
+- **§7** CRAN hygiene
 
 ---
 
@@ -166,9 +186,79 @@ has_after_stat(p, aesthetic, stat_var)
 
 would complement `mapping_exists()` for density-overlay histogram grading.
 
+### 4.3 `..var..` → `after_stat(var)` normalisation
+
+ggplot2 supports two syntaxes for computed-variable mappings:
+
+```r
+geom_histogram(aes(y = ..density..))      # old dot-dot syntax
+geom_histogram(aes(y = after_stat(density)))  # current syntax
+```
+
+Both are semantically identical; ggplot2 deprecated `..density..` in favour of
+`after_stat(density)`. However, `spec_aes()` stores whichever string the user
+wrote, so `equiv_aes()` fails when one plot uses the old syntax and the other
+uses the new:
+
+```r
+spec_aes(p_dot)$variable   # "..density.."
+spec_aes(p_ast)$variable   # "after_stat(density)"
+equiv_aes(p_dot, p_ast)    # FAIL — string mismatch
+```
+
+**Proposed rule** `.rule_dot_dot_to_after_stat` at mode `"structural"` (or
+`"strict"`):
+
+1. For every aesthetic variable string of the form `..varname..`, replace it
+   with `after_stat(varname)` using a simple regex substitution.
+2. Record each substitution in `$changes`.
+
+This rule is a pure string rewrite with no data dependency and should be
+promoted to `"structural"` mode since it is a purely cosmetic syntactic
+difference with no semantic content.
+
 ---
 
-## 5. New spec dimensions: theme and guides
+## 5. Scale-transform vs mapping-transform equivalence
+
+`scale_x_log10()` and `aes(x = log10(displ))` produce identical rendered output
+but are stored differently:
+
+```r
+# Scale-transform form
+spec_aes(p_scale)     # variable = "displ"
+spec_scales(p_scale)  # transform = "log-10"
+
+# Mapping-transform form
+spec_aes(p_map)       # variable = "log10(displ)"
+spec_scales(p_map)    # (no scale row)
+```
+
+`equiv_aes()` therefore fails: `"displ"` ≠ `"log10(displ)"`.
+
+`enrich_spec()` can *detect* the equivalence: for `p_scale`, `built_aes$x$value`
+contains the log-transformed numerics, while `spec_aes()` still shows `"displ"`.
+The "transformed" category from the spec/build comparison (quantity in spec with
+a value that differs in build) is exactly this case.
+
+**Proposed rule** `.rule_scale_transform_to_mapping` at mode `"visual"`:
+
+1. For each continuous scale with a non-identity transform (from `spec_scales()`),
+   locate the aesthetic it controls.
+2. Build the equivalent mapping expression (e.g. `scale_x_log10` → `"log10(x_var)"`).
+3. Replace the plain variable string with the transformed expression in `spec$mapping`
+   and `spec$aes_long`, and record the scale's transform as having been absorbed.
+4. The inverse direction (mapping expression → scale) requires expression parsing;
+   limit Phase 1 to the scale → mapping direction only.
+
+**Complexity note**: only a small set of transforms has a well-defined inverse
+mapping expression (`log10`, `log`, `sqrt`, `exp`). Arbitrary `scales::trans_new()`
+transforms cannot be handled without user-supplied mapping templates. Phase 1
+should handle the four common cases and leave the rest uncanonicalised.
+
+---
+
+## 6. New spec dimensions: theme and guides
 
 Neither ggcheck nor gginnards provides a tidy extraction of theme elements or
 guide configuration. Adding these to ggspec would complete the declarative spec
@@ -198,7 +288,7 @@ tidy data frame. Columns: `aesthetic`, `guide_type` (chr), `title` (chr),
 
 ---
 
-## 6. CRAN / package hygiene
+## 7. CRAN / package hygiene
 
 ### 6.1 `examples/` directory
 

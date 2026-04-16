@@ -53,25 +53,33 @@
 #' es$built_aes[[1]]
 enrich_spec <- function(p) {
   assert_ggplot(p)
-  b          <- .build(p)
-  layers_tbl <- spec_layers(p)
+  layers_tbl   <- spec_layers(p)
+  nonzero_rows <- which(layers_tbl$layer > 0L)
 
-  if (nrow(layers_tbl) == 0L) {
-    return(dplyr::mutate(layers_tbl, params_tbl = list(), built_aes = list()))
-  }
+  # Initialise list-columns (layer 0 gets empty tables)
+  empty_params <- tibble::tibble(param = character(), value = list(),
+                                 explicit = logical(), source = character())
+  empty_aes    <- tibble::tibble(aesthetic = character(), value = list(),
+                                 explicit  = logical())
+  layers_tbl$params_tbl <- rep(list(empty_params), nrow(layers_tbl))
+  layers_tbl$built_aes  <- rep(list(empty_aes),    nrow(layers_tbl))
 
-  # Resolved aesthetic names per layer (global + local merged; names only)
+  if (length(nonzero_rows) == 0L) return(layers_tbl)
+
+  b <- .build(p)
+
+  # Resolved aesthetic names per non-zero layer (global + local merged; names only)
   resolved_names <- lapply(p$layers, function(l) {
     names(.resolve_aes(l, p$mapping, inherit = "resolve"))
   })
 
-  layers_tbl$params_tbl <- lapply(seq_len(nrow(layers_tbl)), function(i) {
-    .enrich_params(p$layers[[i]])
-  })
-
-  layers_tbl$built_aes <- lapply(seq_len(nrow(layers_tbl)), function(i) {
-    .extract_built_aes(p$layers[[i]], b$data[[i]], resolved_names[[i]])
-  })
+  for (i in seq_along(nonzero_rows)) {
+    ri <- nonzero_rows[i]
+    layers_tbl$params_tbl[[ri]] <- .enrich_params(p$layers[[i]])
+    layers_tbl$built_aes[[ri]]  <- .extract_built_aes(
+      p$layers[[i]], b$data[[i]], resolved_names[[i]]
+    )
+  }
 
   layers_tbl
 }

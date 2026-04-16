@@ -74,17 +74,18 @@ test_that("compare_plots() passes for different layer order in visual mode", {
 # Aesthetic inheritance equivalence
 # ---------------------------------------------------------------------------
 
-test_that("global aes vs local aes are already equivalent at spec level", {
+test_that("global aes vs local aes differ at strict spec level (equiv_aes)", {
   p1 <- ggplot(mpg, aes(displ, hwy)) + geom_point()
   p2 <- ggplot(mpg) + geom_point(aes(displ, hwy))
-  # equiv_aes with inherit="resolve" already handles this
-  expect_true(as.logical(equiv_aes(p1, p2)))
+  # Layer 0 mapping differs: p1 has global aes, p2 has empty global aes
+  expect_false(as.logical(equiv_aes(p1, p2)))
 })
 
-test_that("compare_plots() passes for global vs local aes mapping", {
+test_that("compare_plots() passes for global vs local aes mapping in structural mode", {
   p1 <- ggplot(mpg, aes(displ, hwy)) + geom_point()
   p2 <- ggplot(mpg) + geom_point(aes(displ, hwy))
-  expect_true(as.logical(compare_plots(p1, p2, check = "aes")))
+  # structural mode folds layer 0 into layers, making them equivalent
+  expect_true(as.logical(compare_plots(p1, p2, mode = "structural", check = "aes")))
 })
 
 # ---------------------------------------------------------------------------

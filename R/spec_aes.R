@@ -1,22 +1,27 @@
 #' Extract aesthetic mappings as a long-format tidy data frame
 #'
 #' Returns one row per (layer × aesthetic) pair, making it easy to check
-#' which variable is mapped to which aesthetic in which layer.
+#' which variable is mapped to which aesthetic in which layer.  A row with
+#' `layer = 0` is always included to document any mapping specified directly
+#' in `ggplot()`.
 #'
 #' @param p A ggplot object.
 #' @param layer Integer vector of layer indices to include. `NULL` (default)
-#'   returns all layers.
-#' @param inherit Controls global/local mapping inheritance; same semantics as
-#'   in [spec_layers()].
+#'   returns all layers including layer 0.  Pass `0L` to retrieve only the
+#'   global-context row; pass `1L` etc. for specific non-zero layers.
+#' @param inherit Controls global/local mapping inheritance for non-zero
+#'   layers; same semantics as in [spec_layers()].
 #'
 #' @return A [tibble::tibble()] with one row per layer × aesthetic and columns:
 #'   \describe{
-#'     \item{`layer_idx`}{Integer layer index (1-based).}
-#'     \item{`geom`}{Geom name for the layer.}
+#'     \item{`layer`}{Integer layer index. `0` = global context; `1..N` =
+#'       regular layers.}
+#'     \item{`geom`}{Geom name for the layer. `NA` for layer 0.}
 #'     \item{`aesthetic`}{Aesthetic name, e.g. `"x"`, `"colour"`.}
 #'     \item{`variable`}{Variable label mapped to the aesthetic (as a string).}
-#'     \item{`source`}{Where the mapping originates: `"global"`, `"local"`, or
-#'       `"resolved"` (present in both, local takes precedence).}
+#'     \item{`source`}{Where the mapping originates: `"global"` (layer-0
+#'       rows), `"local"` (layer-specific only), or `"resolved"` (present in
+#'       both global and local, local takes precedence).}
 #'   }
 #'
 #' @export
@@ -29,19 +34,41 @@
 spec_aes <- function(p, layer = NULL, inherit = "resolve") {
   assert_ggplot(p)
   layers <- p$layers
-  if (length(layers) == 0L) return(.empty_aes_tbl())
-
-  idx <- if (is.null(layer)) seq_along(layers) else as.integer(layer)
-  idx <- idx[idx >= 1L & idx <= length(layers)]
-  if (length(idx) == 0L) return(.empty_aes_tbl())
 
   global_chr <- vapply(p$mapping %||% rlang::quos(), .deparse_aes, character(1L))
 
+  # Layer 0: global mapping
+  layer0_rows <- if (length(global_chr) > 0L) {
+    tibble::tibble(
+      layer     = 0L,
+      geom      = NA_character_,
+      aesthetic = names(global_chr),
+      variable  = unname(global_chr),
+      source    = rep("global", length(global_chr))
+    )
+  } else {
+    .empty_aes_tbl()
+  }
+
+  # Determine which non-zero layer indices to include
+  if (!is.null(layer)) {
+    layer_int <- as.integer(layer)
+    include_layer0 <- 0L %in% layer_int
+    idx <- layer_int[layer_int >= 1L & layer_int <= length(layers)]
+    if (!include_layer0) layer0_rows <- .empty_aes_tbl()
+  } else {
+    include_layer0 <- TRUE
+    idx <- seq_along(layers)
+  }
+
+  if (length(idx) == 0L) {
+    return(layer0_rows)
+  }
+
   rows <- lapply(idx, function(i) {
-    l <- layers[[i]]
+    l         <- layers[[i]]
     local_chr <- vapply(l$mapping %||% rlang::quos(), .deparse_aes, character(1L))
 
-    # Determine source per aesthetic
     all_aes <- union(names(global_chr), names(local_chr))
     if (length(all_aes) == 0L) return(NULL)
 
@@ -58,7 +85,7 @@ spec_aes <- function(p, layer = NULL, inherit = "resolve") {
     var_vec[is.na(var_vec)] <- NA_character_
 
     tibble::tibble(
-      layer_idx = i,
+      layer     = i,
       geom      = .geom_name(l),
       aesthetic = all_aes,
       variable  = unname(var_vec),
@@ -66,7 +93,7 @@ spec_aes <- function(p, layer = NULL, inherit = "resolve") {
     )
   })
 
-  dplyr::bind_rows(rows)
+  dplyr::bind_rows(layer0_rows, dplyr::bind_rows(rows))
 }
 
 # ---------------------------------------------------------------------------
@@ -76,7 +103,7 @@ spec_aes <- function(p, layer = NULL, inherit = "resolve") {
 #' @noRd
 .empty_aes_tbl <- function() {
   tibble::tibble(
-    layer_idx = integer(),
+    layer     = integer(),
     geom      = character(),
     aesthetic = character(),
     variable  = character(),

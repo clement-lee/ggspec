@@ -10,25 +10,30 @@ spec_aes(p, layer = NULL, inherit = "resolve")
 \item{p}{A ggplot object.}
 
 \item{layer}{Integer vector of layer indices to include. \code{NULL} (default)
-returns all layers.}
+returns all layers including layer 0.  Pass \code{0L} to retrieve only the
+global-context row; pass \code{1L} etc. for specific non-zero layers.}
 
-\item{inherit}{Controls global/local mapping inheritance; same semantics as
-in \code{\link[=spec_layers]{spec_layers()}}.}
+\item{inherit}{Controls global/local mapping inheritance for non-zero
+layers; same semantics as in \code{\link[=spec_layers]{spec_layers()}}.}
 }
 \value{
 A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per layer × aesthetic and columns:
 \describe{
-\item{\code{layer_idx}}{Integer layer index (1-based).}
-\item{\code{geom}}{Geom name for the layer.}
+\item{\code{layer}}{Integer layer index. \code{0} = global context; \verb{1..N} =
+regular layers.}
+\item{\code{geom}}{Geom name for the layer. \code{NA} for layer 0.}
 \item{\code{aesthetic}}{Aesthetic name, e.g. \code{"x"}, \code{"colour"}.}
 \item{\code{variable}}{Variable label mapped to the aesthetic (as a string).}
-\item{\code{source}}{Where the mapping originates: \code{"global"}, \code{"local"}, or
-\code{"resolved"} (present in both, local takes precedence).}
+\item{\code{source}}{Where the mapping originates: \code{"global"} (layer-0
+rows), \code{"local"} (layer-specific only), or \code{"resolved"} (present in
+both global and local, local takes precedence).}
 }
 }
 \description{
 Returns one row per (layer × aesthetic) pair, making it easy to check
-which variable is mapped to which aesthetic in which layer.
+which variable is mapped to which aesthetic in which layer.  A row with
+\code{layer = 0} is always included to document any mapping specified directly
+in \code{ggplot()}.
 }
 \examples{
 p <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
