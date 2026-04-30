@@ -2,47 +2,50 @@
 % Please edit documentation in R/compare.R
 \name{compare_plots}
 \alias{compare_plots}
-\title{Compare two ggplot objects after canonicalisation}
+\title{Compare two ggplot objects}
 \usage{
-compare_plots(
-  p1,
-  p2,
-  mode = "structural",
-  check = c("layers", "aes", "scales", "facets", "labels", "coord"),
-  ...
-)
+compare_plots(p1, p2, mode = "structural", check = NULL, ...)
 }
 \arguments{
 \item{p1}{The reference ggplot object.}
 
 \item{p2}{The observed ggplot object to compare against \code{p1}.}
 
-\item{mode}{Canonicalisation mode passed to \code{\link[=canon]{canon()}}.  One of
-\code{"strict"} (default \code{"structural"}), \code{"structural"} (default),
-\code{"visual"}, or \code{"pedagogical"}.}
+\item{mode}{One of \code{"strict"}, \code{"structural"} (default), \code{"visual"}, or
+\code{"conceptual"}.}
 
-\item{check}{Character vector of checks to run.}
+\item{check}{Character vector of checks to run. For structural modes:
+any of \code{"layers"}, \code{"aes"}, \code{"scales"}, \code{"facets"}, \code{"labels"},
+\code{"coord"}. For visual mode: any of \code{"rendered"}, \code{"labels"}, \code{"facets"},
+\code{"coord"}. Ignored for conceptual mode.}
 
-\item{...}{Additional arguments passed to individual \verb{equiv_*()} functions.}
+\item{...}{Additional arguments passed to individual \verb{equiv_*()} functions
+(structural modes only).}
 }
 \value{
 A \code{ggspec_compare} object (extends \code{ggspec_result}) with the usual
-\verb{$pass}, \verb{$message}, and \verb{$detail} fields, plus:
-\describe{
-\item{\verb{$canon_p1}}{The \code{ggspec_canon} object for \code{p1}.}
-\item{\verb{$canon_p2}}{The \code{ggspec_canon} object for \code{p2}.}
-\item{\verb{$mode}}{The canonicalisation mode used.}
-}
+\verb{$pass}, \verb{$message}, and \verb{$detail} fields, plus \verb{$mode}.  For structural
+modes, also contains \verb{$canon_p1} and \verb{$canon_p2}.
 }
 \description{
-\code{compare_plots()} is the high-level, canonicalisation-aware entry point for
-comparing two ggplot objects. It applies \code{\link[=canon]{canon()}} to both inputs before
-running the structural checks, so plots that are semantically equivalent
-but expressed differently — different data/mapping placement, different
-layer order, \code{coord_flip()} vs swapped aesthetics, scale \code{name} vs
-\code{labs()} — are detected as equal.
+\code{compare_plots()} is the high-level entry point for comparing two ggplot
+objects. The \code{mode} argument selects which equivalence pathway to use:
 }
 \details{
+\itemize{
+\item \code{"strict"} / \code{"structural"}: spec-level comparison via \code{\link[=canon]{canon()}}.
+Plots that are structurally equivalent after canonicalisation
+(different data/mapping placement, layer order, \code{geom_col} vs
+\code{geom_bar(stat="identity")}) are detected as equal.
+\item \code{"visual"}: rendered-output comparison via \code{\link[=compare_visual]{compare_visual()}}.
+Uses \code{\link[ggplot2:ggplot_build]{ggplot2::ggplot_build()}} rather than spec inspection; detects
+equivalences that structural comparison cannot (e.g. pre-computed vs
+stat-based geoms, \code{coord_flip()} with swapped aesthetics).
+\item \code{"conceptual"}: communicative-intent comparison via
+\code{\link[=compare_conceptual]{compare_conceptual()}}. Detects plots that convey the same information
+using different visual encodings (e.g. histogram vs density).
+}
+
 \code{\link[=equiv_plot]{equiv_plot()}} is equivalent to \code{compare_plots(mode = "strict")}.
 }
 \examples{
@@ -53,8 +56,10 @@ p2 <- ggplot(mpg) + geom_point(aes(displ, hwy))
 as.logical(compare_plots(p1, p2, mode = "strict"))      # FALSE
 as.logical(compare_plots(p1, p2, mode = "structural"))  # TRUE
 
-# Layer order equivalence in structural mode
-p3 <- ggplot(mpg, aes(displ, hwy)) + geom_point() + geom_smooth()
-p4 <- ggplot(mpg, aes(displ, hwy)) + geom_smooth() + geom_point()
-as.logical(compare_plots(p3, p4, check = "layers"))  # TRUE
+# Visual equivalence: geom_bar vs geom_col on pre-counted data
+library(dplyr)
+pb <- ggplot(mpg, aes(x = class)) + geom_bar()
+pc <- mpg |> count(class) |> ggplot(aes(x = class, y = n)) + geom_col()
+as.logical(compare_plots(pb, pc, mode = "structural"))  # FALSE
+as.logical(compare_plots(pb, pc, mode = "visual"))      # TRUE
 }

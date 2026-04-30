@@ -12,25 +12,22 @@ object. If a \code{ggspec_canon} is supplied, its \verb{$spec} is re-canonicalis
 (useful for chaining or verifying idempotency).}
 
 \item{mode}{Character scalar controlling which normalisation rules are
-applied:
+applied. \code{canon()} is a \strong{term rewriting system (TRS)} that computes
+a structural normal form: two plots are structurally equivalent iff they
+have the same normal form under these rules.
 \describe{
 \item{\code{"strict"}}{Minimal normalisation: ensure all values are plain
 character strings (no raw quosures) and list-column NULLs are
-standardised. Safe to apply before any comparison.}
+standardised. Preserves data/mapping placement and layer order.}
 \item{\code{"structural"} (default)}{Includes strict, plus: fold global
 data/mapping into each non-zero layer so that placement differences
 (global vs per-layer) become transparent; sort layers into a
 canonical order by \verb{(geom, stat)}; normalise geom/stat
-representation.}
-\item{\code{"visual"}}{Includes structural, plus: absorb \code{coord_flip()}
-by swapping \code{x}/\code{y} aesthetics and replacing the coord with
-\code{"cartesian"}; move scale \code{name} arguments into the labels table so
-that \code{scale_fill_*(name = "v")} and \verb{scale_fill_*() + labs(fill = "v")}
-compare as equal; mark default \code{coord_cartesian()} as \code{"default"}.}
-\item{\code{"pedagogical"}}{Includes visual, plus domain-specific rules
-useful for automated grading: flags \code{bins} vs \code{binwidth} usage in
-histograms and records \code{after_stat()} mappings.}
-}}
+representation (\code{geom_col} → \code{geom_bar(stat="identity")}).}
+}
+Visual and conceptual comparison (which require rendering via
+\code{\link[ggplot2:ggplot_build]{ggplot2::ggplot_build()}}) are handled by \code{\link[=compare_visual]{compare_visual()}} and
+\code{\link[=compare_conceptual]{compare_conceptual()}} respectively, not by \code{canon()}.}
 }
 \value{
 An object of class \code{ggspec_canon}, a named list with components:

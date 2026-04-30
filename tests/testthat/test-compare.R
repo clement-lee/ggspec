@@ -10,13 +10,22 @@ test_that("compare_plots() returns a ggspec_compare object", {
   expect_s3_class(result, "ggspec_result")
 })
 
-test_that("compare_plots() result has canon_p1, canon_p2, mode fields", {
+test_that("compare_plots() structural result has canon_p1, canon_p2, mode fields", {
   p1 <- make_base_plot()
   p2 <- make_base_plot()
   result <- compare_plots(p1, p2)
   expect_s3_class(result$canon_p1, "ggspec_canon")
   expect_s3_class(result$canon_p2, "ggspec_canon")
   expect_equal(result$mode, "structural")
+})
+
+test_that("compare_plots() visual result has mode field but no canon fields", {
+  p1 <- make_base_plot()
+  p2 <- make_base_plot()
+  result <- compare_plots(p1, p2, mode = "visual")
+  expect_equal(result$mode, "visual")
+  expect_null(result$canon_p1)
+  expect_null(result$canon_p2)
 })
 
 test_that("compare_plots() passes for identical plots", {
@@ -64,10 +73,12 @@ test_that("compare_plots() passes for different layer order in structural mode",
   expect_true(as.logical(compare_plots(p1, p2, mode = "structural", check = "layers")))
 })
 
-test_that("compare_plots() passes for different layer order in visual mode", {
+test_that("compare_plots() mode visual returns ggspec_compare", {
   p1 <- make_point_smooth_plot()
   p2 <- make_smooth_point_plot()
-  expect_true(as.logical(compare_plots(p1, p2, mode = "visual", check = "layers")))
+  result <- compare_plots(p1, p2, mode = "visual")
+  expect_s3_class(result, "ggspec_compare")
+  expect_equal(result$mode, "visual")
 })
 
 # ---------------------------------------------------------------------------
@@ -99,9 +110,9 @@ test_that("equiv_coord fails for coord_flip vs cartesian", {
 })
 
 test_that("compare_plots() passes for coord_flip vs swapped aes in visual mode", {
-  p1 <- make_flip_plot()   # aes(x=g, y=v) + coord_flip
+  p1 <- make_flip_plot()    # aes(x=g, y=v) + coord_flip
   p2 <- make_swapped_plot() # aes(x=v, y=g) + no flip
-  result <- compare_plots(p1, p2, mode = "visual", check = c("layers", "aes", "coord"))
+  result <- compare_plots(p1, p2, mode = "visual", check = c("rendered", "coord"))
   expect_true(as.logical(result))
 })
 
@@ -128,11 +139,11 @@ test_that("equiv_labels fails when reference uses labs but observation uses scal
 })
 
 test_that("compare_plots() passes for scale name vs labs(fill=) in visual mode", {
-  # Either direction works: visual mode promotes scale names into the labels table
-  # before comparison, so both plots end up with fill = "Vehicle class" in labels.
+  # Visual mode uses .norm_scale_names() before comparison, so both plots end up
+  # with fill = "Vehicle class" in effective labels.
   p1 <- make_labs_fill_plot()
   p2 <- make_scale_name_plot()
-  result <- compare_plots(p1, p2, mode = "visual", check = c("scales", "labels"))
+  result <- compare_plots(p1, p2, mode = "visual", check = "labels")
   expect_true(as.logical(result))
 })
 
@@ -165,7 +176,7 @@ test_that("check_plot() passes in visual mode for coord_flip equivalence", {
   p1 <- make_flip_plot()
   p2 <- make_swapped_plot()
   expect_invisible(
-    check_plot(p2, p1, check = c("layers", "aes", "coord"), mode = "visual")
+    check_plot(p2, p1, check = c("rendered", "coord"), mode = "visual")
   )
 })
 

@@ -47,18 +47,18 @@ test_that("canon() is idempotent for structural mode", {
   expect_equal(nrow(c2$changes), 0L)
 })
 
-test_that("canon() is idempotent for visual mode with coord_flip", {
+test_that("canon() is idempotent for structural mode with coord_flip", {
   p <- make_flip_plot()
-  c1 <- canon(p, mode = "visual")
-  c2 <- canon(c1, mode = "visual")
+  c1 <- canon(p, mode = "structural")
+  c2 <- canon(c1, mode = "structural")
   expect_equal(c1$spec, c2$spec)
   expect_equal(nrow(c2$changes), 0L)
 })
 
-test_that("canon() is idempotent for visual mode with scale name", {
+test_that("canon() is idempotent for structural mode with scale name plot", {
   p <- make_scale_name_plot()
-  c1 <- canon(p, mode = "visual")
-  c2 <- canon(c1, mode = "visual")
+  c1 <- canon(p, mode = "structural")
+  c2 <- canon(c1, mode = "structural")
   expect_equal(c1$spec, c2$spec)
   expect_equal(nrow(c2$changes), 0L)
 })
@@ -83,16 +83,14 @@ test_that("layer reordering is recorded in $changes", {
   expect_true(any(c1$changes$rule == "layer_order"))
 })
 
-test_that("coord_flip normalisation is recorded in $changes", {
-  p <- make_flip_plot()
-  c1 <- canon(p, mode = "visual")
-  expect_true(any(c1$changes$rule == "coord_flip"))
+test_that("canon() rejects visual mode", {
+  p <- make_base_plot()
+  expect_error(canon(p, mode = "visual"))
 })
 
-test_that("scale name promotion is recorded in $changes", {
-  p <- make_scale_name_plot()
-  c1 <- canon(p, mode = "visual")
-  expect_true(any(c1$changes$rule == "scale_name_to_labels"))
+test_that("canon() rejects conceptual mode", {
+  p <- make_base_plot()
+  expect_error(canon(p, mode = "conceptual"))
 })
 
 # ---------------------------------------------------------------------------
@@ -123,96 +121,14 @@ test_that("canon() updates aes_long layer after reordering", {
 })
 
 # ---------------------------------------------------------------------------
-# Coord flip rule (visual mode)
+# Coord flip: structural mode still records no coord_flip rule
+# (coord_flip normalisation is now handled by .norm_coord_flip() in visual.R)
 # ---------------------------------------------------------------------------
 
-test_that("canon() converts coord_flip to cartesian in visual mode", {
+test_that("canon() structural mode does not apply coord_flip rule", {
   p <- make_flip_plot()
-  c1 <- canon(p, mode = "visual")
-  expect_equal(c1$spec$coord[[2]]$coord_type, "default")  # cartesian -> default by next rule
-})
-
-test_that("canon() swaps x and y aesthetics when flipping", {
-  p <- make_flip_plot()  # aes(x = g, y = v) + coord_flip
-  c1 <- canon(p, mode = "visual")
-  # First non-zero layer is row 2
-  layer1_mapping <- c1$spec$mapping[[2]]
-  expect_equal(unname(layer1_mapping["x"]), "v")
-  expect_equal(unname(layer1_mapping["y"]), "g")
-})
-
-test_that("canon() handles coord_flip when only y is mapped (no x)", {
-  # geom_bar(aes(y = class)) + coord_flip is a common teaching pattern
-  p <- ggplot(mpg, aes(y = class)) + geom_bar() + coord_flip()
-  c1 <- canon(p, mode = "visual")
-  # y should be renamed to x (no x to swap with); check non-zero layer row
-  non_zero_rows <- c1$spec[c1$spec$layer > 0L, ]
-  layer1_mapping <- non_zero_rows$mapping[[1]]
-  expect_equal(unname(layer1_mapping["x"]), "class")
-  expect_false("y" %in% names(layer1_mapping) && !is.na(layer1_mapping[["y"]]))
-})
-
-test_that("canon() handles coord_flip when only x is mapped (no y)", {
-  p <- ggplot(mpg, aes(x = class)) + geom_bar() + coord_flip()
-  c1 <- canon(p, mode = "visual")
-  non_zero_rows <- c1$spec[c1$spec$layer > 0L, ]
-  layer1_mapping <- non_zero_rows$mapping[[1]]
-  expect_equal(unname(layer1_mapping["y"]), "class")
-  expect_false("x" %in% names(layer1_mapping) && !is.na(layer1_mapping[["x"]]))
-})
-
-# ---------------------------------------------------------------------------
-# Scale name -> labels rule (visual mode)
-# ---------------------------------------------------------------------------
-
-test_that("canon() moves scale name to labels in visual mode", {
-  p <- make_scale_name_plot()
-  c1 <- canon(p, mode = "visual")
-  labels <- c1$spec$labels[[2]]  # first non-zero layer
-  fill_label <- labels$label[labels$aesthetic == "fill"]
-  expect_equal(fill_label, "Vehicle class")
-})
-
-test_that("canon() sets scale name to NA after promotion", {
-  p <- make_scale_name_plot()
-  c1 <- canon(p, mode = "visual")
-  scales <- c1$spec$scales[[2]]  # first non-zero layer
-  fill_name <- scales$name[grepl("fill", scales$aesthetic)]
-  expect_true(all(is.na(fill_name)))
-})
-
-# ---------------------------------------------------------------------------
-# Default coord rule (visual mode)
-# ---------------------------------------------------------------------------
-
-test_that("canon() marks default cartesian coord as 'default' in visual mode", {
-  p <- ggplot(mpg, aes(displ, hwy)) + geom_point()
-  c1 <- canon(p, mode = "visual")
-  expect_equal(c1$spec$coord[[2]]$coord_type, "default")  # first non-zero layer
-})
-
-# ---------------------------------------------------------------------------
-# Pedagogical mode
-# ---------------------------------------------------------------------------
-
-test_that("canon() flags bins parameter in pedagogical mode", {
-  p <- ggplot(mpg, aes(displ)) + geom_histogram(bins = 20)
-  c1 <- canon(p, mode = "pedagogical")
-  expect_true(any(c1$changes$rule == "histogram_bin_param"))
-})
-
-test_that("canon() does not flag binwidth parameter in pedagogical mode", {
-  p <- ggplot(mpg, aes(displ)) + geom_histogram(binwidth = 0.5)
-  c1 <- canon(p, mode = "pedagogical")
-  expect_false(any(c1$changes$rule == "histogram_bin_param"))
-})
-
-test_that("canon() flags after_stat mapping in pedagogical mode", {
-  p <- ggplot(mpg, aes(displ)) +
-    geom_histogram(aes(y = after_stat(density)), binwidth = 0.5) +
-    geom_density()
-  c1 <- canon(p, mode = "pedagogical")
-  expect_true(any(c1$changes$rule == "after_stat_flag"))
+  c1 <- canon(p, mode = "structural")
+  expect_false(any(c1$changes$rule == "coord_flip"))
 })
 
 # ---------------------------------------------------------------------------

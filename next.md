@@ -10,13 +10,15 @@ ggspec was motivated by two gaps in the existing ecosystem:
 | Returns tidy data frames | ✗ | ✗ | ✓ |
 | Full declarative spec extraction | ✗ | partial | ✓ |
 | Framework-agnostic grading assertion | ✗ | ✗ | ✓ |
-| Canonicalisation (coord_flip, geom_col, etc.) | ✗ | ✗ | ✓ |
+| Canonicalisation (coord_flip, geom_col, etc.) | ✗ | ✗ | ✓ (structural) |
 | Build-enriched default/explicit detection | ✗ | partial | ✓ (`enrich_spec`) |
+| Visual equivalence (ggplot_build comparison) | ✗ | ✗ | ✓ (`compare_visual`) |
+| Conceptual similarity detection | ✗ | ✗ | ✓ (`compare_conceptual`) |
 | `..var..` / `after_stat()` normalisation | ✗ | ✗ | ✗ pending |
 | Scale-transform vs mapping-transform equivalence | ✗ | ✗ | ✗ pending |
 | Theme extraction + comparison | ✗ | partial | ✗ pending |
 | Guide/legend extraction + comparison | ✗ | ✗ | ✗ pending |
-| Cross-geom stat equivalence | ✗ | ✗ | ✗ pending |
+| Cross-geom stat equivalence (structural) | ✗ | ✗ | ✗ pending (visual ✓) |
 
 The core extraction, comparison, and grading-workflow tiers are feature-complete.
 The following edge cases have been verified as already handled:
@@ -30,12 +32,16 @@ The following edge cases have been verified as already handled:
   `compare_plots()` includes them in all check vectors.
 - **Multiple datasets (global vs per-layer)**: `spec_layers()$data_source` records the
   placement but all `equiv_*` functions ignore it by design.
+- **coord_flip vs swapped aesthetics**: `compare_visual()` via `.norm_coord_flip()` handles
+  this at the ggplot-object level before rendering; not available in structural mode.
+- **scale name vs labs()**: `compare_visual()` via `.norm_scale_names()` absorbs scale
+  `name` arguments into `p$labels` before comparison.
 
-The remaining work is in five clusters, covered in sections 1–8:
-- **§1** Multi-dataset layer verification (`equiv_layer_data`)
-- **§2** Cross-geom stat equivalence (geom_count vs geom_point + count)
-- **§3** `enrich_spec()` integration (`equiv_explicit_params`, numeric tolerance)
-- **§4** Pedagogical-mode extensions (bins/binwidth, `has_after_stat`, `..var..` normalisation)
+The remaining work is in clusters covered in sections 1–7:
+- **§1** Multi-dataset layer verification (`equiv_layer_data`, `equiv_layer_order_visual`)
+- **§2** Cross-geom stat equivalence at structural level
+- **§3** `enrich_spec()` integration (`equiv_explicit_params`, numeric tolerance, default params rule)
+- **§4** Pedagogical extensions (`has_after_stat`, `..var..` normalisation)
 - **§5** Scale-transform vs mapping-transform equivalence
 - **§6** New spec dimensions (theme, guides)
 - **§7** CRAN hygiene
@@ -85,12 +91,68 @@ from `usa_map`.
 — matches layers by position and compares each pair's effective data (resolving
 global vs local). The `layer_map` argument handles non-1:1 correspondences.
 
+### 1.3 Visual equivalence of differently-ordered layers (`equiv_layer_order_visual`)
+
+For multi-dataset plots (e.g. two `geom_sf` layers with different datasets),
+switching layer order is:
+
+- **Visually equivalent** when the rendered regions do not overlap (neither
+  layer occludes the other — typical of non-overlapping spatial datasets).
+- **NOT visually equivalent** when the rendered regions overlap — z-ordering
+  determines what is visible on top.
+
+Detection requires comparing the rendered bounding boxes or point positions of
+each layer after `ggplot_build()`. This cannot be determined from the spec alone.
+
+**Proposed function** `equiv_layer_order_visual(p1, p2)`:
+1. Call `ggplot_build()` to get rendered data per layer.
+2. For each pair of layers (one from p1, one from p2), check whether their
+   rendered regions overlap:
+   - **Point geoms**: check if any (x, y) pairs coincide in both layers.
+   - **Polygon/SF geoms**: check bounding-box intersection; for exact overlap
+     detection, require `sf::st_intersects()`.
+3. If no overlap: affirm visual equivalence of the reordered plots.
+4. If overlap detected: visual equivalence fails.
+
+**Implementation notes**:
+- Phase 1: implement for point geoms with exact (x, y) coordinate matching.
+- Phase 2: polygon/SF support via `sf::st_intersects()`; wrap in
+  `skip_if_not_installed("sf")` in tests.
+- Only the simple (point) case is data-independent of geom type; polygon
+  intersection testing needs `sf` as a soft dependency.
+
 ---
 
 ## 2. Cross-geom stat equivalence
 
+### 2.0 What is now handled
+
+`compare_visual()` / `equiv_rendered()` now handles cross-geom stat equivalence
+at the **visual level**: `ggplot_build()` evaluates both the stat-computing and
+pre-computed forms, and `equiv_rendered()` compares the resulting panel data
+frame by frame. The following pairs are therefore already visually equivalent:
+
+| Stat-computing form | Pre-computed form | Status |
+|---|---|---|
+| `geom_count()` | `count() + geom_point(aes(size = n))` | ✓ visual |
+| `geom_bar()` (stat="count") | `count() + geom_col()` | ✓ visual |
+| `geom_bar()` (stat="count") | `count() + geom_bar(stat="identity")` | ✓ visual |
+
+**Variable-name mismatch caveat**: when the pre-computed plot uses a column name
+that differs from the stat-computed default (e.g. `count(species, name="count")`
+→ `y = count` instead of `y = n`), the rendered bar heights are identical but the
+axis labels differ. Visual equivalence then requires **both** plots to have
+explicitly set the same axis label (via `labs(y=...)` or `scale_y_continuous(name=...)`).
+Without explicit matching labels, `equiv_labels()` will report a difference.
+
+### 2.1 What remains: structural-level cross-geom equivalence
+
+Cross-geom equivalence is NOT yet handled at the structural level (`canon()`).
+The remaining gap is a spec-level rewrite rule:
+
 A plot using a stat-computing geom on raw data is not currently comparable to a
-plot that pre-computes the same statistic and uses a simpler geom. Examples:
+plot that pre-computes the same statistic and uses a simpler geom. Examples that
+structural comparison fails on today:
 
 | Stat-computing form | Pre-computed form |
 |---|---|
@@ -99,16 +161,17 @@ plot that pre-computes the same statistic and uses a simpler geom. Examples:
 | `geom_histogram()` (stat = "bin") | `cut()` / `tabulate()` + `geom_col()` |
 | `stat_summary()` | pre-aggregated data + `geom_point()` / `geom_line()` |
 
-For `geom_bar()` / `geom_bar(stat="identity")` + `count()`, `equiv_layers`
-and `equiv_aes` already pass (same geom name "bar"; aes subset check holds).
-Only the data differs, and `equiv_data()` would fail. This is the "soft" variant.
+Known limitation in current `equiv_layers()` (non-exact mode): the subset check
+matches geom name only and does not verify that the stat matches. This means
+`geom_bar(stat="count")` and `geom_bar(stat="identity")` are incorrectly reported
+as structurally equivalent. Fix: non-exact mode should also verify stat matches
+when comparing layers of the same geom.
 
 For `geom_count()` vs `geom_point(aes(size=n))`, the geom names differ ("count"
 vs "point"), so `equiv_layers()` fails outright. This is the "hard" variant
 requiring a new canonicalisation rule.
 
-**Proposed rule** `.rule_stat_geom_to_precomputed` at mode `"semantic"` or
-`"pedagogical"`:
+**Proposed rule** `.rule_stat_geom_to_precomputed` at a new `"semantic"` mode:
 
 1. Detect layers where `stat ∈ {"sum", "count", "bin"}`.
 2. For each such layer, check whether the comparison plot has a corresponding
@@ -161,6 +224,30 @@ for floating-point params (e.g. `alpha = 0.5` vs `alpha = 0.5000001`). Add a
 The `$changes` tibble from `canon()` records spec-level transformations. A
 natural extension is to also record whether a transformed value was user-explicit
 or a resolved default, making the diff more interpretable for instructors.
+
+### 3.4 `.rule_explicit_default_params` — normalise away ggplot2 defaults
+
+A canonical rule that removes parameters whose value equals the ggplot2 default,
+determined via `enrich_spec()`. This would make:
+
+```r
+geom_histogram()          # bins param absent  →  canonical: params = {}
+geom_histogram(bins = 30) # bins = 30 = default → canonical: params = {}
+```
+
+structurally equivalent. Currently they differ at spec level because the second
+explicitly sets `bins = 30`.
+
+**Design notes**:
+- Requires `enrich_spec()` (calls `ggplot_build()`) to identify which param values
+  are equal to the ggplot2 defaults — hence this rule can only appear in a mode
+  that allows building, NOT in strict/structural.
+- Appropriate mode: a future `"semantic"` mode, or as an optional flag on
+  `canon(mode = "structural", remove_explicit_defaults = TRUE)`.
+- Applies to: `bins = 30` (histogram), `se = TRUE` (smooth), `alpha = 1` (most
+  geoms), `size = 0.5` (line geoms), etc.
+- **Not** safe at structural level without data, because the default for some
+  params is data-dependent (e.g. `binwidth` default depends on `diff(range(x))/30`).
 
 ---
 
@@ -255,6 +342,16 @@ a value that differs in build) is exactly this case.
 mapping expression (`log10`, `log`, `sqrt`, `exp`). Arbitrary `scales::trans_new()`
 transforms cannot be handled without user-supplied mapping templates. Phase 1
 should handle the four common cases and leave the rest uncanonicalised.
+
+**Related — variable-name mismatch in pre-computed data**: a separate issue arises
+when two pre-computed plots use different column names for the same quantity (e.g.
+`count(species)` → column `n`; `count(species, name = "count")` → column `count`).
+The rendered bar heights are identical but `equiv_aes()` fails (`y = n` vs
+`y = count`). Visual equivalence holds only when both plots have explicitly set
+the same axis label (via `labs(y = ...)` or `scale_y_continuous(name = ...)`);
+without matching labels, `equiv_labels()` reports a mismatch. There is no
+spec-level rule that can resolve column-name differences without accessing the
+actual data — this is inherently a visual or data-dependent check.
 
 ---
 

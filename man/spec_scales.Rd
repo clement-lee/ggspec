@@ -27,7 +27,7 @@ only; \code{NA} otherwise).}
 \description{
 Returns one row per explicitly added scale. Scales that were never added
 by the user (i.e. default scales inferred at render time) are not included
-because they do not exist in the ggplot object before \code{ggplot_build()} is
+because they do not exist in the ggplot object before \code{\link[ggplot2:ggplot_build]{ggplot2::ggplot_build()}} is
 called; use \code{\link[=spec_plot]{spec_plot()}} to access built scales.
 }
 \examples{

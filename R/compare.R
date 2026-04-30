@@ -1,29 +1,36 @@
-#' Compare two ggplot objects after canonicalisation
+#' Compare two ggplot objects
 #'
-#' `compare_plots()` is the high-level, canonicalisation-aware entry point for
-#' comparing two ggplot objects. It applies [canon()] to both inputs before
-#' running the structural checks, so plots that are semantically equivalent
-#' but expressed differently — different data/mapping placement, different
-#' layer order, `coord_flip()` vs swapped aesthetics, scale `name` vs
-#' `labs()` — are detected as equal.
+#' `compare_plots()` is the high-level entry point for comparing two ggplot
+#' objects. The `mode` argument selects which equivalence pathway to use:
+#'
+#' - `"strict"` / `"structural"`: spec-level comparison via [canon()].
+#'   Plots that are structurally equivalent after canonicalisation
+#'   (different data/mapping placement, layer order, `geom_col` vs
+#'   `geom_bar(stat="identity")`) are detected as equal.
+#' - `"visual"`: rendered-output comparison via [compare_visual()].
+#'   Uses [ggplot2::ggplot_build()] rather than spec inspection; detects
+#'   equivalences that structural comparison cannot (e.g. pre-computed vs
+#'   stat-based geoms, `coord_flip()` with swapped aesthetics).
+#' - `"conceptual"`: communicative-intent comparison via
+#'   [compare_conceptual()]. Detects plots that convey the same information
+#'   using different visual encodings (e.g. histogram vs density).
 #'
 #' [equiv_plot()] is equivalent to `compare_plots(mode = "strict")`.
 #'
 #' @param p1 The reference ggplot object.
 #' @param p2 The observed ggplot object to compare against `p1`.
-#' @param mode Canonicalisation mode passed to [canon()].  One of
-#'   `"strict"` (default `"structural"`), `"structural"` (default),
-#'   `"visual"`, or `"pedagogical"`.
-#' @param check Character vector of checks to run.
-#' @param ... Additional arguments passed to individual `equiv_*()` functions.
+#' @param mode One of `"strict"`, `"structural"` (default), `"visual"`, or
+#'   `"conceptual"`.
+#' @param check Character vector of checks to run. For structural modes:
+#'   any of `"layers"`, `"aes"`, `"scales"`, `"facets"`, `"labels"`,
+#'   `"coord"`. For visual mode: any of `"rendered"`, `"labels"`, `"facets"`,
+#'   `"coord"`. Ignored for conceptual mode.
+#' @param ... Additional arguments passed to individual `equiv_*()` functions
+#'   (structural modes only).
 #'
 #' @return A `ggspec_compare` object (extends `ggspec_result`) with the usual
-#'   `$pass`, `$message`, and `$detail` fields, plus:
-#'   \describe{
-#'     \item{`$canon_p1`}{The `ggspec_canon` object for `p1`.}
-#'     \item{`$canon_p2`}{The `ggspec_canon` object for `p2`.}
-#'     \item{`$mode`}{The canonicalisation mode used.}
-#'   }
+#'   `$pass`, `$message`, and `$detail` fields, plus `$mode`.  For structural
+#'   modes, also contains `$canon_p1` and `$canon_p2`.
 #'
 #' @export
 #' @examples
@@ -34,19 +41,42 @@
 #' as.logical(compare_plots(p1, p2, mode = "strict"))      # FALSE
 #' as.logical(compare_plots(p1, p2, mode = "structural"))  # TRUE
 #'
-#' # Layer order equivalence in structural mode
-#' p3 <- ggplot(mpg, aes(displ, hwy)) + geom_point() + geom_smooth()
-#' p4 <- ggplot(mpg, aes(displ, hwy)) + geom_smooth() + geom_point()
-#' as.logical(compare_plots(p3, p4, check = "layers"))  # TRUE
+#' # Visual equivalence: geom_bar vs geom_col on pre-counted data
+#' library(dplyr)
+#' pb <- ggplot(mpg, aes(x = class)) + geom_bar()
+#' pc <- mpg |> count(class) |> ggplot(aes(x = class, y = n)) + geom_col()
+#' as.logical(compare_plots(pb, pc, mode = "structural"))  # FALSE
+#' as.logical(compare_plots(pb, pc, mode = "visual"))      # TRUE
 compare_plots <- function(p1, p2,
                           mode  = "structural",
-                          check = c("layers", "aes", "scales", "facets",
-                                    "labels", "coord"),
+                          check = NULL,
                           ...) {
   assert_ggplot(p1, "p1")
   assert_ggplot(p2, "p2")
-  mode  <- match.arg(mode, c("strict", "structural", "visual", "pedagogical"))
-  check <- match.arg(check, several.ok = TRUE)
+  mode <- match.arg(mode, c("strict", "structural", "visual", "conceptual"))
+
+  if (mode == "visual") {
+    check <- if (is.null(check)) {
+      c("rendered", "labels", "facets", "coord")
+    } else {
+      match.arg(check,
+                c("rendered", "labels", "facets", "coord"),
+                several.ok = TRUE)
+    }
+    return(compare_visual(p1, p2, check = check))
+  }
+
+  if (mode == "conceptual") {
+    return(compare_conceptual(p1, p2))
+  }
+
+  check <- if (is.null(check)) {
+    c("layers", "aes", "scales", "facets", "labels", "coord")
+  } else {
+    match.arg(check,
+              c("layers", "aes", "scales", "facets", "labels", "coord"),
+              several.ok = TRUE)
+  }
 
   c1 <- canon(p1, mode = mode)
   c2 <- canon(p2, mode = mode)

@@ -186,7 +186,7 @@ enrich_spec <- function(p) {
 #'
 #' Columns in the built data frame that correspond to valid geom aesthetics are
 #' matched against what the user explicitly mapped or set as constants.
-#' `ggplot_build()` is the source of truth for the resolved values.
+#' [ggplot2::ggplot_build()] is the source of truth for the resolved values.
 #' @noRd
 .extract_built_aes <- function(layer, built_data, resolved_aes_names = NULL) {
   # Aesthetic names valid for this geom

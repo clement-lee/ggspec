@@ -171,7 +171,7 @@ has_layer <- function(p, geom = NULL, stat = NULL) {
 #' @return A `data.frame` with columns `aes` (character) and `var` (character).
 #'   Rows where the variable is `NA` (e.g. aesthetics set to constants) are
 #'   excluded.
-#' @export
+#' @noRd
 #' @examples
 #' p <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
 #'   ggplot2::geom_point(ggplot2::aes(colour = class))
@@ -193,7 +193,7 @@ flat_mappings <- function(p) {
 
 #' Test whether a specific aesthetic mapping exists in a plot
 #'
-#' Convenience predicate wrapping [flat_mappings()]. Returns `TRUE` if any
+#' Convenience predicate wrapping. Returns `TRUE` if any
 #' layer (or the global mapping) maps `aesthetic` to `variable`.
 #'
 #' @param p A ggplot object.
@@ -223,16 +223,7 @@ mapping_exists <- function(p, aesthetic, variable) {
 #' @param p A ggplot object.
 #' @param data A data frame to search for.
 #' @return An integer scalar.
-#' @export
-#' @examples
-#' drv_summary <- dplyr::group_by(ggplot2::mpg, drv) |>
-#'   dplyr::summarise(mean_displ = mean(displ))
-#' p <- ggplot2::ggplot() +
-#'   ggplot2::geom_jitter(data = ggplot2::mpg,
-#'                        ggplot2::aes(x = drv, y = displ)) +
-#'   ggplot2::geom_point(data = drv_summary,
-#'                       ggplot2::aes(x = drv, y = mean_displ))
-#' layer_data_index(p, drv_summary)
+#' @noRd
 layer_data_index <- function(p, data) {
   assert_ggplot(p)
   if (identical(p$data, data)) return(0L)

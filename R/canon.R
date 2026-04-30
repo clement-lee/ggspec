@@ -17,25 +17,22 @@
 #'   object. If a `ggspec_canon` is supplied, its `$spec` is re-canonicalised
 #'   (useful for chaining or verifying idempotency).
 #' @param mode Character scalar controlling which normalisation rules are
-#'   applied:
+#'   applied. `canon()` is a **term rewriting system (TRS)** that computes
+#'   a structural normal form: two plots are structurally equivalent iff they
+#'   have the same normal form under these rules.
 #'   \describe{
 #'     \item{`"strict"`}{Minimal normalisation: ensure all values are plain
 #'       character strings (no raw quosures) and list-column NULLs are
-#'       standardised. Safe to apply before any comparison.}
+#'       standardised. Preserves data/mapping placement and layer order.}
 #'     \item{`"structural"` (default)}{Includes strict, plus: fold global
 #'       data/mapping into each non-zero layer so that placement differences
 #'       (global vs per-layer) become transparent; sort layers into a
 #'       canonical order by `(geom, stat)`; normalise geom/stat
-#'       representation.}
-#'     \item{`"visual"`}{Includes structural, plus: absorb `coord_flip()`
-#'       by swapping `x`/`y` aesthetics and replacing the coord with
-#'       `"cartesian"`; move scale `name` arguments into the labels table so
-#'       that `scale_fill_*(name = "v")` and `scale_fill_*() + labs(fill = "v")`
-#'       compare as equal; mark default `coord_cartesian()` as `"default"`.}
-#'     \item{`"pedagogical"`}{Includes visual, plus domain-specific rules
-#'       useful for automated grading: flags `bins` vs `binwidth` usage in
-#'       histograms and records `after_stat()` mappings.}
+#'       representation (`geom_col` → `geom_bar(stat="identity")`).}
 #'   }
+#'   Visual and conceptual comparison (which require rendering via
+#'   [ggplot2::ggplot_build()]) are handled by [compare_visual()] and
+#'   [compare_conceptual()] respectively, not by `canon()`.
 #'
 #' @return An object of class `ggspec_canon`, a named list with components:
 #'   \describe{
@@ -61,7 +58,7 @@
 #' c2 <- canon(c1)
 #' nrow(c2$changes)  # 0 — already canonical
 canon <- function(x, mode = "structural") {
-  mode <- match.arg(mode, c("strict", "structural", "visual", "pedagogical"))
+  mode <- match.arg(mode, c("strict", "structural"))
 
   # Extract spec from input
   if (inherits(x, "ggspec_canon")) {
@@ -116,21 +113,10 @@ print.ggspec_canon <- function(x, ...) {
     .rule_geom_col_to_bar,
     .rule_layer_order
   ))
-  visual_rules <- c(structural_rules, list(
-    .rule_coord_flip,
-    .rule_scale_name_to_labels,
-    .rule_default_coord
-  ))
-  pedagogical_rules <- c(visual_rules, list(
-    .rule_histogram_bin_param,
-    .rule_after_stat_flag
-  ))
 
   switch(mode,
-    strict       = strict_rules,
-    structural   = structural_rules,
-    visual       = visual_rules,
-    pedagogical  = pedagogical_rules
+    strict     = strict_rules,
+    structural = structural_rules
   )
 }
 
@@ -284,185 +270,6 @@ print.ggspec_canon <- function(x, ...) {
     to        = paste(seq_len(nrow(nonzero)), collapse = ",")
   )
   list(spec = spec, changes = dplyr::bind_rows(changes, change))
-}
-
-# Rule: coord_flip
-.rule_coord_flip <- function(spec, changes) {
-  if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
-
-  # Find coord from first non-zero layer (or any row if only layer 0 present)
-  coord_row <- if (any(spec$layer > 0L)) which(spec$layer > 0L)[1L] else 1L
-  coord <- spec$coord[[coord_row]]
-  if (!identical(coord$coord_type, "flip")) {
-    return(list(spec = spec, changes = changes))
-  }
-
-  # Swap x <-> y in mapping list-column (all rows)
-  spec$mapping <- lapply(spec$mapping, function(m) {
-    has_x <- "x" %in% names(m) && !is.na(m[["x"]])
-    has_y <- "y" %in% names(m) && !is.na(m[["y"]])
-    if (has_x && has_y) {
-      tmp    <- m[["x"]]
-      m["x"] <- m[["y"]]
-      m["y"] <- tmp
-    } else if (has_y) {
-      names(m)[names(m) == "y"] <- "x"
-    } else if (has_x) {
-      names(m)[names(m) == "x"] <- "y"
-    }
-    m
-  })
-
-  # Swap x <-> y in aes_long list-column
-  if ("aes_long" %in% names(spec)) {
-    spec$aes_long <- lapply(spec$aes_long, function(tbl) {
-      x_rows <- tbl$aesthetic == "x"
-      y_rows <- tbl$aesthetic == "y"
-      has_x  <- any(x_rows)
-      has_y  <- any(y_rows)
-      if (has_x && has_y) {
-        x_vars <- tbl$variable[x_rows]
-        y_vars <- tbl$variable[y_rows]
-        tbl$variable[x_rows] <- y_vars
-        tbl$variable[y_rows] <- x_vars
-      } else if (has_y) {
-        tbl$aesthetic[y_rows] <- "x"
-      } else if (has_x) {
-        tbl$aesthetic[x_rows] <- "y"
-      }
-      tbl
-    })
-  }
-
-  new_coord <- coord
-  new_coord$coord_type <- "cartesian"
-  spec$coord <- rep(list(new_coord), nrow(spec))
-
-  change <- tibble::tibble(
-    rule      = "coord_flip",
-    dimension = "coord + mapping",
-    layer     = NA_integer_,
-    from      = "coord_flip with x/y aesthetics",
-    to        = "coord_cartesian with x/y swapped"
-  )
-  list(spec = spec, changes = dplyr::bind_rows(changes, change))
-}
-
-# Rule: scale_name_to_labels
-.rule_scale_name_to_labels <- function(spec, changes) {
-  if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
-
-  # Use scales/labels from first non-zero row (or row 1 if only layer 0)
-  ref_row <- if (any(spec$layer > 0L)) which(spec$layer > 0L)[1L] else 1L
-  scales_tbl <- spec$scales[[ref_row]]
-  labels_tbl <- spec$labels[[ref_row]]
-  new_changes <- changes
-
-  named_rows <- which(!is.na(scales_tbl$name))
-  if (length(named_rows) == 0L) return(list(spec = spec, changes = changes))
-
-  for (i in named_rows) {
-    aes_str <- scales_tbl$aesthetic[[i]]
-    nm      <- scales_tbl$name[[i]]
-    existing_idx <- which(labels_tbl$aesthetic == aes_str)
-    if (length(existing_idx) == 0L) {
-      labels_tbl <- dplyr::bind_rows(
-        labels_tbl,
-        tibble::tibble(aesthetic = aes_str, label = nm)
-      )
-    } else {
-      labels_tbl$label[existing_idx] <- nm
-    }
-    new_changes <- dplyr::bind_rows(new_changes, tibble::tibble(
-      rule      = "scale_name_to_labels",
-      dimension = "scales/labels",
-      layer     = NA_integer_,
-      from      = sprintf("scale[%s]$name = '%s'", aes_str, nm),
-      to        = sprintf("labels[%s] = '%s'", aes_str, nm)
-    ))
-    scales_tbl$name[[i]] <- NA_character_
-  }
-
-  spec$scales <- rep(list(scales_tbl), nrow(spec))
-  spec$labels <- rep(list(labels_tbl), nrow(spec))
-
-  list(spec = spec, changes = new_changes)
-}
-
-# Rule: default_coord
-.rule_default_coord <- function(spec, changes) {
-  if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
-
-  ref_row <- if (any(spec$layer > 0L)) which(spec$layer > 0L)[1L] else 1L
-  coord <- spec$coord[[ref_row]]
-  xlim_null <- is.null(coord$xlim[[1L]])
-  ylim_null <- is.null(coord$ylim[[1L]])
-  is_default <- identical(coord$coord_type, "cartesian") &&
-    xlim_null && ylim_null
-
-  if (!is_default) return(list(spec = spec, changes = changes))
-  if (identical(coord$coord_type, "default")) return(list(spec = spec, changes = changes))
-
-  new_coord <- coord
-  new_coord$coord_type <- "default"
-  spec$coord <- rep(list(new_coord), nrow(spec))
-
-  change <- tibble::tibble(
-    rule      = "default_coord",
-    dimension = "coord",
-    layer     = NA_integer_,
-    from      = "cartesian (explicit or default)",
-    to        = "default"
-  )
-  list(spec = spec, changes = dplyr::bind_rows(changes, change))
-}
-
-# Rule: histogram_bin_param (pedagogical)
-.rule_histogram_bin_param <- function(spec, changes) {
-  if (nrow(spec) == 0L) return(list(spec = spec, changes = changes))
-
-  new_changes <- changes
-  nonzero <- spec[spec$layer > 0L, , drop = FALSE]
-  for (i in seq_len(nrow(nonzero))) {
-    if (!identical(nonzero$stat[[i]], "bin")) next
-    params <- nonzero$params[[i]]
-    has_bins     <- !is.null(params[["bins"]])
-    has_binwidth <- !is.null(params[["binwidth"]])
-    if (has_bins && !has_binwidth) {
-      new_changes <- dplyr::bind_rows(new_changes, tibble::tibble(
-        rule      = "histogram_bin_param",
-        dimension = "params",
-        layer     = nonzero$layer[[i]],
-        from      = sprintf("bins = %s", params[["bins"]]),
-        to        = "flexible_bin_param (bins accepted)"
-      ))
-    }
-  }
-  list(spec = spec, changes = new_changes)
-}
-
-# Rule: after_stat_flag (pedagogical)
-.rule_after_stat_flag <- function(spec, changes) {
-  if (nrow(spec) == 0L || !"aes_long" %in% names(spec)) {
-    return(list(spec = spec, changes = changes))
-  }
-
-  new_changes <- changes
-  nonzero <- spec[spec$layer > 0L, , drop = FALSE]
-  for (i in seq_len(nrow(nonzero))) {
-    tbl <- nonzero$aes_long[[i]]
-    after_stat_rows <- tbl[grepl("after_stat", tbl$variable, fixed = TRUE), , drop = FALSE]
-    if (nrow(after_stat_rows) > 0L) {
-      new_changes <- dplyr::bind_rows(new_changes, tibble::tibble(
-        rule      = "after_stat_flag",
-        dimension = "aes",
-        layer     = nonzero$layer[[i]],
-        from      = paste(after_stat_rows$variable, collapse = "; "),
-        to        = "after_stat_mapping_present"
-      ))
-    }
-  }
-  list(spec = spec, changes = new_changes)
 }
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@
 check_plot(
   p,
   expected,
-  check = c("layers", "aes", "scales", "facets", "labels", "coord"),
+  check = NULL,
   mode = NULL,
   fail_fn = stop,
   pass_fn = invisible,
@@ -22,10 +22,11 @@ check_plot(
 \item{check}{Character vector of checks to run; passed to \code{\link[=equiv_plot]{equiv_plot()}} or
 \code{\link[=compare_plots]{compare_plots()}}.}
 
-\item{mode}{Character scalar: canonicalisation mode. If \code{NULL} (default),
-\code{\link[=equiv_plot]{equiv_plot()}} is used (direct comparison). If a string such as
-\code{"structural"}, \code{"visual"}, or \code{"pedagogical"}, \code{\link[=compare_plots]{compare_plots()}} is
-used, applying \code{\link[=canon]{canon()}} before comparing.}
+\item{mode}{Character scalar: comparison mode. If \code{NULL} (default),
+\code{\link[=equiv_plot]{equiv_plot()}} is used (direct comparison). If \code{"strict"} or
+\code{"structural"}, \code{\link[=compare_plots]{compare_plots()}} is used with \code{\link[=canon]{canon()}}. If \code{"visual"}
+or \code{"conceptual"}, \code{\link[=compare_plots]{compare_plots()}} dispatches to \code{\link[=compare_visual]{compare_visual()}} or
+\code{\link[=compare_conceptual]{compare_conceptual()}} respectively.}
 
 \item{fail_fn}{A function called with the failure message string when the
 check does not pass. Defaults to \code{\link[=stop]{stop()}}. Useful alternatives:

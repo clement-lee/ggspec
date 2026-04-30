@@ -2,7 +2,7 @@
 #'
 #' Returns one row per explicitly added scale. Scales that were never added
 #' by the user (i.e. default scales inferred at render time) are not included
-#' because they do not exist in the ggplot object before `ggplot_build()` is
+#' because they do not exist in the ggplot object before [ggplot2::ggplot_build()] is
 #' called; use [spec_plot()] to access built scales.
 #'
 #' @param p A ggplot object.

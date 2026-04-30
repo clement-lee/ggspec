@@ -6,17 +6,41 @@
 \alias{ggspec-package}
 \title{ggspec: Extract and Compare ggplot2 Plot Specifications as Tidy Data Frames}
 \description{
-ggspec provides a two-tier API for working with ggplot2 objects
+ggspec provides three tiers of API for working with ggplot2 objects
 programmatically:
 
 \strong{Extraction tier (\verb{spec_*})}: functions that take a ggplot object and
 return tidy data frames describing its full specification — layers, aesthetic
 mappings, scales, facets, coordinate system, and labels.
 
-\strong{Comparison tier (\verb{equiv_*}, \verb{check_*})}: functions that compare two
-ggplot objects structurally, returning informative results suitable for
-automated testing, plot auditing, or grading workflows.
+\strong{Comparison tier (\verb{equiv_*}, \verb{compare_*})}: functions that compare two
+ggplot objects at four levels of strictness (see below), returning
+informative \code{ggspec_result} objects suitable for automated testing, plot
+auditing, or grading workflows.
+
+\strong{Check / assertion tier (\verb{check_*}, \verb{expect_*})}: wrappers that call
+\code{fail_fn} on failure, making comparison results actionable in any grading
+or testing framework.
 }
+\section{Four comparison modes}{
+
+\code{compare_plots()} selects one of four pathways via its \code{mode} argument:
+\itemize{
+\item \strong{strict}: identical specs, same layer order, same random seed.
+Implemented via \code{\link[=canon]{canon()}} with only null-normalisation applied.
+\item \strong{structural}: identical specs after canonicalisation by \code{\link[=canon]{canon()}}.
+Rules: fold_global (placement transparency), geom_col_to_bar (shorthand
+expansion), layer_order (non-spanning geom sorting).
+\item \strong{visual}: identical rendered output, checked via \code{\link[ggplot2:ggplot_build]{ggplot2::ggplot_build()}}.
+Handled by \code{\link[=compare_visual]{compare_visual()}}; detects equivalences that structural
+comparison cannot (pre-counted vs stat-computed, coord_flip vs swapped
+aesthetics, scale name vs labs).
+\item \strong{conceptual}: same communicative intent with different visual encodings.
+Handled by \code{\link[=compare_conceptual]{compare_conceptual()}}; each rule is qualified by a WHEN
+condition (e.g. boxplot ≡ violin WHEN 1 continuous + 1 discrete variable).
+}
+}
+
 \section{Extraction functions}{
 
 \itemize{
@@ -28,14 +52,15 @@ automated testing, plot auditing, or grading workflows.
 \item \code{\link[=spec_coord]{spec_coord()}} — coordinate system properties
 \item \code{\link[=spec_data]{spec_data()}} — one row per unique dataset (data_id, label)
 \item \code{\link[=spec_plot]{spec_plot()}} — master summary joining all of the above
-\item \code{\link[=enrich_spec]{enrich_spec()}} — spec_layers plus explicit/default flags from ggplot_build()
+\item \code{\link[=enrich_spec]{enrich_spec()}} — spec_layers plus explicit/default flags from \code{\link[ggplot2:ggplot_build]{ggplot2::ggplot_build()}}
 }
 }
 
-\section{Comparison functions}{
+\section{Structural comparison functions}{
 
 \itemize{
-\item \code{\link[=equiv_layers]{equiv_layers()}} — compare layer structure
+\item \code{\link[=canon]{canon()}} — reduce a ggplot to its canonical spec (strict or structural mode)
+\item \code{\link[=equiv_layers]{equiv_layers()}} — compare layer structure (geom, stat, data_id)
 \item \code{\link[=equiv_aes]{equiv_aes()}} — compare aesthetic mappings
 \item \code{\link[=equiv_scales]{equiv_scales()}} — compare scales
 \item \code{\link[=equiv_facets]{equiv_facets()}} — compare facet specification
@@ -43,7 +68,23 @@ automated testing, plot auditing, or grading workflows.
 \item \code{\link[=equiv_coord]{equiv_coord()}} — compare coordinate system
 \item \code{\link[=equiv_params]{equiv_params()}} — compare layer parameters
 \item \code{\link[=equiv_data]{equiv_data()}} — compare layer data
-\item \code{\link[=equiv_plot]{equiv_plot()}} — run all checks in one call
+\item \code{\link[=equiv_plot]{equiv_plot()}} — run all structural checks in one call
+\item \code{\link[=compare_plots]{compare_plots()}} — four-mode entry point; dispatches to the appropriate pathway
+}
+}
+
+\section{Visual comparison functions}{
+
+\itemize{
+\item \code{\link[=compare_visual]{compare_visual()}} — high-level visual equivalence via \code{\link[ggplot2:ggplot_build]{ggplot2::ggplot_build()}}
+\item \code{\link[=equiv_rendered]{equiv_rendered()}} — compare built layer data frame by frame
+}
+}
+
+\section{Conceptual similarity functions}{
+
+\itemize{
+\item \code{\link[=compare_conceptual]{compare_conceptual()}} — run all conceptual similarity detectors
 }
 }
 

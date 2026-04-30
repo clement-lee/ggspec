@@ -9,10 +9,11 @@
 #' @param expected The reference ggplot object.
 #' @param check Character vector of checks to run; passed to [equiv_plot()] or
 #'   [compare_plots()].
-#' @param mode Character scalar: canonicalisation mode. If `NULL` (default),
-#'   [equiv_plot()] is used (direct comparison). If a string such as
-#'   `"structural"`, `"visual"`, or `"pedagogical"`, [compare_plots()] is
-#'   used, applying [canon()] before comparing.
+#' @param mode Character scalar: comparison mode. If `NULL` (default),
+#'   [equiv_plot()] is used (direct comparison). If `"strict"` or
+#'   `"structural"`, [compare_plots()] is used with [canon()]. If `"visual"`
+#'   or `"conceptual"`, [compare_plots()] dispatches to [compare_visual()] or
+#'   [compare_conceptual()] respectively.
 #' @param fail_fn A function called with the failure message string when the
 #'   check does not pass. Defaults to [stop()]. Useful alternatives:
 #'   `gradethis::fail`, `warning`, `message`, or a custom function.
@@ -48,8 +49,7 @@
 #'   error = function(e) message("Caught: ", conditionMessage(e))
 #' )
 check_plot <- function(p, expected,
-                       check = c("layers", "aes", "scales", "facets",
-                                 "labels", "coord"),
+                       check   = NULL,
                        mode    = NULL,
                        fail_fn = stop,
                        pass_fn = invisible,
@@ -60,7 +60,8 @@ check_plot <- function(p, expected,
   result <- if (!is.null(mode)) {
     compare_plots(p1 = expected, p2 = p, mode = mode, check = check, ...)
   } else {
-    equiv_plot(p1 = expected, p2 = p, check = check, ...)
+    check_arg <- check %||% c("layers", "aes", "scales", "facets", "labels", "coord")
+    equiv_plot(p1 = expected, p2 = p, check = check_arg, ...)
   }
 
   if (!isTRUE(result$pass)) {

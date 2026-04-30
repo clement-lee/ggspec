@@ -18,7 +18,7 @@ mapping_exists(p, aesthetic, variable)
 \code{TRUE} or \code{FALSE}.
 }
 \description{
-Convenience predicate wrapping \code{\link[=flat_mappings]{flat_mappings()}}. Returns \code{TRUE} if any
+Convenience predicate wrapping. Returns \code{TRUE} if any
 layer (or the global mapping) maps \code{aesthetic} to \code{variable}.
 }
 \examples{
