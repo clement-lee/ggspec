@@ -23,13 +23,21 @@ of swapped aesthetics. This vignette catalogues the equivalence patterns
 supported by ggspec, documents which function or mode is needed for each, and
 flags patterns not yet covered.
 
-The patterns fall into three tiers:
+The patterns fall into four tiers:
 
 | Tier | Entry point | Key rules applied |
 |---|---|---|
 | Direct | `equiv_plot()` | Resolved aes, geom-name subset |
 | Structural | `compare_plots(mode = "structural")` | `geom_col` → `geom_bar`, layer order |
-| Visual | `compare_plots(mode = "visual")` | `coord_flip` absorbed, scale `name` → `labs()` |
+| Visual | `compare_plots(mode = "visual")` | `coord_flip` absorbed, `scale_*(name=)` / `guides()` / `theme(element_blank())` → `labs()` |
+| Conceptual | `compare_plots(mode = "conceptual")` | Boxplot ≡ violin ≡ jitter; scale limits ≡ coord zoom; etc. |
+
+**Scope note:** Visual equivalence is purely output-based — it checks that two
+plots produce the same rendered data, labels, facets, and coordinate system.  It
+does not verify data provenance.  If two different datasets happen to produce
+visually identical output (same bar heights, same x-axis labels), visual
+equivalence will pass.  Use structural equivalence when you need to verify that
+the same data and the same code idiom were used.
 
 ```{r}
 library(ggspec)
@@ -253,6 +261,56 @@ current function set. They form separate equivalence groups:
 
 Comparing across groups requires a custom canonicalisation rule that rewrites
 both the geom and the data simultaneously. See **Section 5**.
+
+---
+
+## 3.5 Pre-counted bar charts — exhausting the equivalence cases
+
+A bar chart of species counts can be written at least four ways:
+
+```r
+# (a) raw data, stat = "count" (default)
+penguins |> ggplot() + geom_bar(aes(x = species))
+
+# (b) pre-counted, y column named "n", explicit y-label
+penguins |> count(species) |>
+  ggplot() + geom_bar(aes(x = species, y = n), stat = "identity") + labs(y = "count")
+
+# (c) pre-counted, y column named "count" (= default y-label)
+penguins |> count(species, name = "count") |>
+  ggplot() + geom_bar(aes(x = species, y = count), stat = "identity")
+
+# (d) pre-counted, y column named "asdf", explicit y-label
+penguins |> count(species, name = "asdf") |>
+  ggplot() + geom_bar(aes(x = species, y = asdf), stat = "identity") + labs(y = "count")
+```
+
+Three independent checks determine visual equivalence:
+
+1. **Rendered bar heights** — `equiv_rendered()` compares the built `ymax` values.
+   All four forms produce the same bar heights for the same data.
+
+2. **Y-axis label** — `equiv_labels()` compares the effective y-axis label.  The
+   default label for `stat = "count"` is `"count"`.  For pre-counted forms, the
+   default is the y column name (`"n"`, `"count"`, `"asdf"`).
+
+3. **Structural difference** — `equiv_layers()` detects the `stat` and `y`
+   aesthetic difference; `equiv_aes()` flags the missing/extra `y` mapping.
+
+Equivalence matrix (`mode = "visual"`):
+
+| | (a) `geom_bar` | (b) `geom_col` + `labs(y="count")` | (c) y col = `"count"` | (d) `geom_col` + `labs(y="count")` |
+|---|---|---|---|---|
+| **(a)** | — | ✓ (heights + label both "count") | ✓ (col name "count" = stat default) | ✓ (explicit label matches) |
+| **(b)** | ✓ | — | ✓ | ✓ |
+| **(c)** | ✓ | ✓ | — | ✓ |
+| **(d)** | ✓ | ✓ | ✓ | — |
+
+The only cases that fail are those where the effective y-axis labels differ
+(e.g. `(a)` vs a pre-counted form with `y = n` and no explicit `labs(y = ...)`).
+When a comparison fails only on labels but passes on rendered heights, the result
+`$hint` will say: "Rendered output matches but labels differ.  Add `labs()` to
+align axis/legend titles."
 
 ---
 

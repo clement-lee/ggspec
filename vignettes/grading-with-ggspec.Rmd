@@ -21,6 +21,14 @@ knitr::opts_chunk$set(
 are designed to be framework-agnostic: they work in plain R scripts, `testthat`
 test suites, and `learnr`/`gradethis` grading pipelines.
 
+Checking visual equivalence is particularly important in the age of AI-assisted
+coding: different large-language models generate syntactically different code for
+the same visualisation task (`geom_bar()` on raw data vs `geom_col()` on
+pre-counted data; `labs(x = ...)` vs `scale_x_continuous(name = ...)`).
+`ggspec` provides a four-level hierarchy of equivalence checks so that
+functionally identical plots are recognised as equivalent regardless of how they
+were written.
+
 ```{r}
 library(ggspec)
 library(ggplot2)

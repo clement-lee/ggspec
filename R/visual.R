@@ -59,9 +59,67 @@
   for (sc in p$scales$scales) {
     aes_name <- sc$aesthetics[[1L]]
     nm       <- sc$name
-    if (is.null(nm) || inherits(nm, "waiver")) next
+    if (inherits(nm, "waiver")) next
+    # NULL name means "remove label" — propagate into p$labels so it compares
+    # identically to labs(aes = NULL)
     p$labels[[aes_name]] <- nm
     sc$name <- ggplot2::waiver()
+  }
+  p
+}
+
+#' Absorb guide titles into p$labels
+#'
+#' For each entry in p$guides that carries a guide_legend (or guide_colourbar)
+#' with an explicit title, copies that title into p$labels so that
+#' guides(colour = guide_legend("Title")) and labs(colour = "Title") compare
+#' identically.
+#' @noRd
+.norm_guide_labels <- function(p) {
+  if (is.null(p$guides)) return(p)
+  # ggplot2 >= 3.5: $guides is a Guides ggproto object; individual guides
+  # live in $guides$guides keyed by aesthetic, each with $params$title.
+  # Older ggplot2: $guides is a plain list.
+  guides_list <- if (inherits(p$guides, "Guides")) {
+    p$guides$guides
+  } else {
+    p$guides
+  }
+  if (is.null(guides_list) || length(guides_list) == 0L) return(p)
+  for (aes_name in names(guides_list)) {
+    g <- guides_list[[aes_name]]
+    if (is.null(g) || identical(g, "none")) next
+    # ggproto guide objects store the title in $params$title
+    ttl <- if (inherits(g, "ggproto")) g$params$title else g$title
+    if (is.null(ttl)) {
+      p$labels[[aes_name]] <- NULL
+    } else if (!inherits(ttl, "waiver")) {
+      p$labels[[aes_name]] <- ttl
+    }
+  }
+  p
+}
+
+#' Absorb theme element_blank label removals into p$labels
+#'
+#' When axis.title.x / axis.title.y / legend.title is set to element_blank(),
+#' the axis/legend title is visually hidden.  This normaliser propagates that
+#' intent into p$labels so it compares identically to labs(x = NULL) etc.
+#' @noRd
+.norm_theme_labels <- function(p) {
+  th <- p$theme
+  if (is.null(th)) return(p)
+  for (aes_axis in c("x", "y")) {
+    key <- paste0("axis.title.", aes_axis)
+    el  <- th[[key]]
+    if (!is.null(el) && inherits(el, "element_blank"))
+      p$labels[[aes_axis]] <- NULL
+  }
+  if (!is.null(th[["legend.title"]]) &&
+      inherits(th[["legend.title"]], "element_blank")) {
+    legend_aes <- setdiff(names(p$labels),
+                          c("x", "y", "title", "subtitle", "caption", "tag"))
+    for (a in legend_aes) p$labels[[a]] <- NULL
   }
   p
 }
@@ -113,6 +171,9 @@ equiv_rendered <- function(p1, p2) {
 
   KEY_COLS <- c("x", "y", "xmin", "xmax", "ymin", "ymax",
                 "width", "size", "colour", "fill", "alpha", "group", "PANEL")
+  # Path-type geoms connect points in data order; sorting before comparison
+  # would lose that information and produce false positives.
+  PATH_GEOMS <- c("path", "line", "area", "ribbon", "step")
 
   for (i in seq_along(b1)) {
     d1     <- b1[[i]]
@@ -120,13 +181,28 @@ equiv_rendered <- function(p1, p2) {
     shared <- intersect(intersect(names(d1), names(d2)), KEY_COLS)
     if (length(shared) == 0L) next
 
-    sort_col <- shared[[1L]]
-    ord1 <- order(d1[[sort_col]])
-    ord2 <- order(d2[[sort_col]])
-    d1s  <- d1[ord1, shared, drop = FALSE]
-    d2s  <- d2[ord2, shared, drop = FALSE]
+    # Detect whether this layer is order-sensitive (path-type in p1)
+    geom_i <- if (i <= length(p1$layers)) {
+      tolower(sub("^Geom", "", class(p1$layers[[i]]$geom)[[1L]]))
+    } else "unknown"
+    sort_rows <- !geom_i %in% PATH_GEOMS
+
+    if (sort_rows) {
+      sort_col  <- shared[[1L]]
+      d1s <- d1[order(d1[[sort_col]]), shared, drop = FALSE]
+      d2s <- d2[order(d2[[sort_col]]), shared, drop = FALSE]
+    } else {
+      d1s <- d1[, shared, drop = FALSE]
+      d2s <- d2[, shared, drop = FALSE]
+    }
     rownames(d1s) <- NULL
     rownames(d2s) <- NULL
+    # Strip per-column attributes (e.g. ggplot2 internal 'n' on group) so
+    # all.equal() does not fail on implementation details unrelated to values.
+    for (col in shared) {
+      attributes(d1s[[col]]) <- NULL
+      attributes(d2s[[col]]) <- NULL
+    }
 
     cmp <- suppressWarnings(
       tryCatch(all.equal(d1s, d2s, tolerance = 1e-9),
@@ -136,7 +212,8 @@ equiv_rendered <- function(p1, p2) {
       return(new_ggspec_result(FALSE,
         sprintf("Rendered layer %d data differ: %s", i,
                 if (is.character(cmp)) cmp[[1L]] else "mismatch"),
-        check = "rendered"))
+        check = "rendered",
+        hint = "Rendered output differs; check that the underlying data produces the same values."))
     }
   }
 
@@ -181,8 +258,8 @@ compare_visual <- function(p1, p2,
 
   p1n <- .norm_coord_flip(p1)
   p2n <- .norm_coord_flip(p2)
-  q1  <- .norm_scale_names(p1n)
-  q2  <- .norm_scale_names(p2n)
+  q1  <- .norm_theme_labels(.norm_guide_labels(.norm_scale_names(p1n)))
+  q2  <- .norm_theme_labels(.norm_guide_labels(.norm_scale_names(p2n)))
 
   fns <- list(
     rendered = function() equiv_rendered(p1n, p2n),

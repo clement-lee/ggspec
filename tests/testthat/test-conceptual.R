@@ -79,3 +79,22 @@ test_that("compare_plots(mode='conceptual') dispatches to compare_conceptual()",
   expect_equal(result$mode, "conceptual")
   expect_true(as.logical(result))
 })
+
+
+# ---------------------------------------------------------------------------
+# .detect_limit_zoom()
+# ---------------------------------------------------------------------------
+
+test_that(".detect_limit_zoom() recognises scale limits vs coord_cartesian as conceptually similar", {
+  p1 <- make_point_plot() + scale_x_continuous(limits = c(180, 230))
+  p2 <- make_point_plot() + coord_cartesian(xlim = c(180, 230))
+  expect_true(as.logical(compare_plots(p1, p2, mode = "conceptual")))
+})
+
+test_that(".detect_limit_zoom() returns NA when neither plot uses limits (falls back to visual)", {
+  p1 <- make_point_plot()
+  p2 <- make_point_plot() + geom_line()  # extra layer, no limits
+  result <- compare_plots(p1, p2, mode = "conceptual")
+  # NA from limit_zoom detector; falls back to visual (fails: different layer count)
+  expect_false(as.logical(result))
+})

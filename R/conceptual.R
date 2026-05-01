@@ -198,6 +198,68 @@
 }
 
 # ---------------------------------------------------------------------------
+# Detector: scale limits vs coord zoom
+#
+# scale_x_continuous(limits = c(a, b))  — clips data, then zooms
+# coord_cartesian(xlim = c(a, b))       — zooms only, no clipping
+# WHEN: both plots have the same geom(s) and x/y mappings, and the
+#       limit/zoom range is the same on both axes
+# ---------------------------------------------------------------------------
+
+.detect_limit_zoom <- function(p1, p2) {
+  .has_scale_limits <- function(p) {
+    if (is.null(p$scales) || length(p$scales$scales) == 0L) return(FALSE)
+    any(vapply(p$scales$scales, function(sc) {
+      !is.null(sc$limits) && !all(is.na(sc$limits))
+    }, logical(1L)))
+  }
+  .has_coord_limits <- function(p) {
+    coord <- p$coordinates
+    !is.null(coord$limits) && (
+      (!is.null(coord$limits$x) && !all(is.na(coord$limits$x))) ||
+      (!is.null(coord$limits$y) && !all(is.na(coord$limits$y)))
+    )
+  }
+
+  p1_scale <- .has_scale_limits(p1)
+  p2_scale <- .has_scale_limits(p2)
+  p1_coord <- .has_coord_limits(p1)
+  p2_coord <- .has_coord_limits(p2)
+
+  # One uses scale limits, the other uses coord limits (or neither has limits)
+  is_limit_zoom_pair <- (p1_scale && p2_coord) || (p1_coord && p2_scale)
+  if (!is_limit_zoom_pair) {
+    return(new_ggspec_result(NA_real_,
+      "Not a scale-limits vs coord-zoom pair.", check = "conceptual_limit_zoom"))
+  }
+
+  # Both must have the same geoms and the same x/y aesthetic mappings
+  g1 <- vapply(p1$layers, function(l) .geom_name(l), character(1L))
+  g2 <- vapply(p2$layers, function(l) .geom_name(l), character(1L))
+  if (!identical(sort(g1), sort(g2))) {
+    return(new_ggspec_result(FALSE,
+      sprintf("Same limit/zoom approach but different geoms: [%s] vs [%s].",
+              paste(g1, collapse=","), paste(g2, collapse=",")),
+      check = "conceptual_limit_zoom"))
+  }
+
+  aes1 <- .layer_aes(p1$layers[[1L]], .global_aes(p1))
+  aes2 <- .layer_aes(p2$layers[[1L]], .global_aes(p2))
+  x1   <- .aes_var(aes1, "x"); x2 <- .aes_var(aes2, "x")
+  y1   <- .aes_var(aes1, "y"); y2 <- .aes_var(aes2, "y")
+
+  if (!identical(x1, x2) || !identical(y1, y2)) {
+    return(new_ggspec_result(FALSE,
+      "Scale-limits vs coord-zoom but different variable mappings.",
+      check = "conceptual_limit_zoom"))
+  }
+
+  new_ggspec_result(TRUE,
+    "Conceptually similar: both restrict the displayed region (scale_*() clips data; coord_cartesian() zooms only).",
+    check = "conceptual_limit_zoom")
+}
+
+# ---------------------------------------------------------------------------
 # compare_conceptual
 # ---------------------------------------------------------------------------
 
@@ -231,7 +293,8 @@ compare_conceptual <- function(p1, p2) {
   detectors <- list(
     .detect_distribution_1d,
     .detect_distribution_1d_1cat,
-    .detect_count_2d
+    .detect_count_2d,
+    .detect_limit_zoom
   )
 
   for (det in detectors) {

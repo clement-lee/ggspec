@@ -28,6 +28,18 @@ tidy data frames. A second tier of functions enables structural comparison of
 two ggplot objects, supporting automated plot testing, auditing, and
 framework-agnostic grading workflows.
 
+## Motivation
+
+Different large-language models and AI coding assistants generate syntactically
+different code for the same visualisation task.  One AI might write
+`geom_bar(aes(x = species))` on raw data; another might write
+`count(species) |> ... geom_col(aes(x = species, y = n))`.  Both produce the
+same chart, but naive string or AST comparison would flag them as different.
+`ggspec` provides a principled hierarchy of equivalence checks — from strict
+spec equality through structural canonicalisation to rendered-output comparison
+— so that equivalent plots are recognised as equivalent regardless of which
+syntactic path an AI (or human student) took to produce them.
+
 ## Installation
 
 Install the development version from GitHub:

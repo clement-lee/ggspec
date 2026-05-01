@@ -105,9 +105,18 @@ equiv_layers <- function(p1, p2, exact = FALSE, check_order = FALSE) {
     paste(c(geom_msg, data_id_msgs)[nzchar(c(geom_msg, data_id_msgs))],
           collapse = "; ")
   }
+  hint <- if (pass) NA_character_ else if (!geom_pass) {
+    missing_g <- setdiff(l1$geom, l2$geom)
+    if (length(missing_g) == 1L && missing_g == "bar" &&
+        any(l2$geom == "col"))
+      "Replace geom_col() with geom_bar(stat = 'identity'), or use compare_plots(mode = 'structural')."
+    else if (length(missing_g) > 0L)
+      sprintf("Add + geom_%s() to the observed plot.", paste(missing_g, collapse = "/"))
+    else NA_character_
+  } else NA_character_
 
   new_ggspec_result(pass = pass, message = msg, detail = detail,
-                    check = "layers")
+                    check = "layers", hint = hint)
 }
 
 # ---------------------------------------------------------------------------
@@ -160,8 +169,21 @@ equiv_aes <- function(p1, p2, layer = NULL, exact = FALSE) {
                     collapse = ", "))
   }
 
+  hint <- if (pass) NA_character_ else {
+    if (nrow(mismatch_rows) > 0L)
+      sprintf("Change the '%s' mapping in the observed plot to match '%s'.",
+              paste(mismatch_rows$aesthetic, collapse = "/"),
+              paste(mismatch_rows$variable[
+                match(mismatch_rows$aesthetic, bad$aesthetic)], collapse = "/"))
+    else if (nrow(missing_rows) > 0L)
+      sprintf("Add aes(%s) to the observed plot.",
+              paste(sprintf("%s = %s", missing_rows$aesthetic, missing_rows$variable),
+                    collapse = ", "))
+    else NA_character_
+  }
+
   new_ggspec_result(pass = pass, message = msg, detail = detail,
-                    check = "aes")
+                    check = "aes", hint = hint)
 }
 
 # ---------------------------------------------------------------------------
@@ -295,8 +317,20 @@ equiv_labels <- function(p1, p2, aesthetics = NULL) {
     paste(parts, collapse = "; ")
   }
 
+  hint <- if (pass) NA_character_ else {
+    if (nrow(wrong) > 0L)
+      sprintf("Add labs(%s) to the observed plot.",
+              paste(sprintf("%s = '%s'", wrong$aesthetic, wrong$label_ref),
+                    collapse = ", "))
+    else if (nrow(missing) > 0L)
+      sprintf("Add labs(%s) to the observed plot.",
+              paste(sprintf("%s = '%s'", missing$aesthetic, missing$label_ref),
+                    collapse = ", "))
+    else NA_character_
+  }
+
   new_ggspec_result(pass = pass, message = msg, detail = detail,
-                    check = "labels")
+                    check = "labels", hint = hint)
 }
 
 # ---------------------------------------------------------------------------
@@ -323,8 +357,10 @@ equiv_coord <- function(p1, p2) {
   msg  <- if (pass) "Coordinate systems match." else
     sprintf("Coordinate system mismatch: expected '%s', got '%s'.",
             c1$coord_type, c2$coord_type)
+  hint <- if (pass) NA_character_ else
+    "Remove coord_flip() from one plot, or use compare_plots(mode = 'visual')."
 
-  new_ggspec_result(pass = pass, message = msg, check = "coord")
+  new_ggspec_result(pass = pass, message = msg, check = "coord", hint = hint)
 }
 
 # ---------------------------------------------------------------------------

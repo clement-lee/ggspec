@@ -4,7 +4,13 @@
 \alias{new_ggspec_result}
 \title{Constructor for ggspec comparison results}
 \usage{
-new_ggspec_result(pass, message, detail = NULL, check = NA_character_)
+new_ggspec_result(
+  pass,
+  message,
+  detail = NULL,
+  check = NA_character_,
+  hint = NA_character_
+)
 }
 \arguments{
 \item{pass}{Logical scalar.}
@@ -16,6 +22,10 @@ new_ggspec_result(pass, message, detail = NULL, check = NA_character_)
 
 \item{check}{Character scalar naming the check that produced this result
 (e.g. \code{"layers"}, \code{"aes"}).}
+
+\item{hint}{Optional character scalar: a prescriptive suggestion for what to
+change to make the comparison pass. \code{NA_character_} when no specific
+guidance is available.}
 }
 \value{
 An object of class \code{ggspec_result} (a named list).

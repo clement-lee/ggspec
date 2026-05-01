@@ -111,3 +111,61 @@ test_that("compare_visual() accepts subset of checks", {
   result <- compare_visual(p1, p2, check = "labels")
   expect_s3_class(result, "ggspec_compare")
 })
+
+# ---------------------------------------------------------------------------
+# .norm_scale_names() — NULL name
+# ---------------------------------------------------------------------------
+
+test_that(".norm_scale_names() makes scale(name=NULL) equivalent to labs(x=NULL)", {
+  p1 <- make_point_plot() + scale_x_continuous(name = NULL)
+  p2 <- make_point_plot() + labs(x = NULL)
+  expect_true(as.logical(compare_visual(p1, p2, check = "labels")))
+})
+
+# ---------------------------------------------------------------------------
+# .norm_guide_labels()
+# ---------------------------------------------------------------------------
+
+test_that(".norm_guide_labels() makes guides(colour=guide_legend()) equivalent to scale name", {
+  p1 <- make_point_colour_plot() + scale_colour_discrete(name = "Species")
+  p2 <- make_point_colour_plot() + guides(colour = guide_legend("Species"))
+  expect_true(as.logical(compare_visual(p1, p2, check = "labels")))
+})
+
+test_that(".norm_guide_labels() makes guides(colour=guide_legend(NULL)) equivalent to labs(colour=NULL)", {
+  p1 <- make_point_colour_plot() + guides(colour = guide_legend(NULL))
+  p2 <- make_point_colour_plot() + labs(colour = NULL)
+  expect_true(as.logical(compare_visual(p1, p2, check = "labels")))
+})
+
+# ---------------------------------------------------------------------------
+# .norm_theme_labels()
+# ---------------------------------------------------------------------------
+
+test_that(".norm_theme_labels() makes theme(axis.title.x=element_blank()) equivalent to labs(x=NULL)", {
+  p1 <- make_point_plot() + theme(axis.title.x = element_blank())
+  p2 <- make_point_plot() + labs(x = NULL)
+  expect_true(as.logical(compare_visual(p1, p2, check = "labels")))
+})
+
+test_that(".norm_theme_labels() makes theme(legend.title=element_blank()) equivalent to scale name NULL", {
+  p1 <- make_point_colour_plot() + theme(legend.title = element_blank())
+  p2 <- make_point_colour_plot() + scale_colour_discrete(name = NULL)
+  expect_true(as.logical(compare_visual(p1, p2, check = "labels")))
+})
+
+# ---------------------------------------------------------------------------
+# equiv_rendered() — path-order sensitivity
+# ---------------------------------------------------------------------------
+
+test_that("equiv_rendered() correctly equates time-sorted path and line", {
+  p1 <- ggplot(economics, aes(x = date, y = pce)) + geom_path()
+  p2 <- ggplot(economics, aes(x = date, y = pce)) + geom_line()
+  expect_true(as.logical(equiv_rendered(p1, p2)))
+})
+
+test_that("equiv_rendered() distinguishes unsorted path from line", {
+  p1 <- ggplot(economics, aes(x = psavert, y = pce)) + geom_path()
+  p2 <- ggplot(economics, aes(x = psavert, y = pce)) + geom_line()
+  expect_false(as.logical(equiv_rendered(p1, p2)))
+})

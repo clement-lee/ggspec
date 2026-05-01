@@ -229,7 +229,7 @@ make_2d_count_identity_plot <- function() {
 }
 
 # ---------------------------------------------------------------------------
-# Penguins — 2-layer smooth (flipper_len × body_mass)
+# Penguins — 1-layer & 2-layer smooth & with colour (flipper_len × body_mass)
 # ---------------------------------------------------------------------------
 
 plot_point_then_smooth <- function() {
@@ -246,8 +246,32 @@ plot_smooth_then_point <- function() {
     geom_point()
 }
 
+make_point_plot <- function() {
+  penguins |>
+    ggplot(aes(x = flipper_len, y = body_mass)) +
+    geom_point()
+}
+
+make_line_plot <- function() {
+  penguins |>
+    ggplot(aes(x = flipper_len, y = body_mass)) +
+    geom_line()
+}
+
+make_path_plot <- function() {
+  penguins |>
+    ggplot(aes(x = flipper_len, y = body_mass)) +
+    geom_path()
+}
+
+make_point_colour_plot <- function() {
+  penguins |>
+    ggplot(aes(x = flipper_len, y = body_mass, colour = species)) +
+    geom_point()
+}
+
 # ---------------------------------------------------------------------------
-# economics — 2-layer point + line
+# economics — 1-layer & 2-layer point + line
 # ---------------------------------------------------------------------------
 
 plot_point_then_line <- function() {
@@ -261,6 +285,36 @@ plot_line_then_point <- function() {
   economics |>
     ggplot(aes(x = date, y = pce)) +
     geom_line() +
+    geom_point()
+}
+
+make_path_time_plot <- function() {
+  economics |>
+    ggplot(aes(x = date, y = pce)) +
+    geom_path()
+}
+
+make_line_time_plot <- function() {
+  economics |>
+    ggplot(aes(x = date, y = pce)) +
+    geom_line()
+}
+
+make_path_notime_plot <- function() {
+  economics |>
+    ggplot(aes(x = psavert, y = pce)) +
+    geom_path()
+}
+
+make_line_notime_plot <- function() {
+  economics |>
+    ggplot(aes(x = psavert, y = pce)) +
+    geom_line()
+}
+
+make_point_notime_plot <- function() {
+  economics |>
+    ggplot(aes(x = psavert, y = pce)) +
     geom_point()
 }
 

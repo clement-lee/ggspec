@@ -10,12 +10,17 @@
 #'   `NULL`.
 #' @param check Character scalar naming the check that produced this result
 #'   (e.g. `"layers"`, `"aes"`).
+#' @param hint Optional character scalar: a prescriptive suggestion for what to
+#'   change to make the comparison pass. `NA_character_` when no specific
+#'   guidance is available.
 #'
 #' @return An object of class `ggspec_result` (a named list).
 #' @keywords internal
-new_ggspec_result <- function(pass, message, detail = NULL, check = NA_character_) {
+new_ggspec_result <- function(pass, message, detail = NULL,
+                               check = NA_character_, hint = NA_character_) {
   structure(
-    list(pass = pass, message = message, detail = detail, check = check),
+    list(pass = pass, message = message, detail = detail,
+         check = check, hint = hint),
     class = "ggspec_result"
   )
 }
@@ -24,6 +29,8 @@ new_ggspec_result <- function(pass, message, detail = NULL, check = NA_character
 print.ggspec_result <- function(x, ...) {
   icon <- if (isTRUE(x$pass)) "PASS" else "FAIL"
   cat(sprintf("[%s] %s\n", icon, x$message))
+  if (!isTRUE(x$pass) && !is.na(x$hint))
+    cat(sprintf("  Hint: %s\n", x$hint))
   if (!is.null(x$detail) && nrow(x$detail) > 0L) {
     cat("  Detail:\n")
     print(x$detail, ...)
@@ -62,7 +69,24 @@ combine_results <- function(results) {
     dplyr::mutate(r$detail, check = r$check, .before = 1L)
   }))
 
+  # Special hint: rendered passes but labels fail → bar-height-vs-label mismatch
+  checks_pass <- vapply(results, function(r) r$check, character(1L))[
+    vapply(results, function(r) isTRUE(r$pass), logical(1L))]
+  checks_fail <- vapply(results, function(r) r$check, character(1L))[
+    !vapply(results, function(r) isTRUE(r$pass), logical(1L))]
+  hint <- if (!pass && "rendered" %in% checks_pass && "labels" %in% checks_fail) {
+    "Rendered output matches but labels differ. Add labs() to align axis/legend titles."
+  } else if (!pass) {
+    failed_hints <- vapply(
+      results[!vapply(results, function(r) isTRUE(r$pass), logical(1L))],
+      function(r) if (!is.na(r$hint)) r$hint else NA_character_,
+      character(1L)
+    )
+    non_na <- failed_hints[!is.na(failed_hints)]
+    if (length(non_na) > 0L) paste(non_na, collapse = " | ") else NA_character_
+  } else NA_character_
+
   new_ggspec_result(pass = pass, message = msg,
                     detail = if (nrow(detail) == 0L) NULL else detail,
-                    check = "combined")
+                    check = "combined", hint = hint)
 }
