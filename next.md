@@ -36,6 +36,36 @@ The following edge cases have been verified as already handled:
   this at the ggplot-object level before rendering; not available in structural mode.
 - **scale name vs labs()**: `compare_visual()` via `.norm_scale_names()` absorbs scale
   `name` arguments into `p$labels` before comparison.
+- **guide title vs scale name vs labs()**: `.norm_guide_labels()` absorbs
+  `guides(aes = guide_legend("Title"))` into `p$labels`; visual mode only.
+- **theme(axis.title.* = element_blank()) vs labs(x = NULL)**: `.norm_theme_labels()`
+  propagates element_blank label removals into `p$labels`; visual mode only.
+- **scale_x_continuous(name = NULL) vs labs(x = NULL)**: `.norm_scale_names()` propagates
+  NULL scale names into `p$labels`; visual mode only.
+- **Path-order sensitivity in equiv_rendered()**: path-type geoms (path, line, area,
+  ribbon, step) are compared in data-frame row order rather than sorted order, so
+  `geom_path` (connects in data order) and `geom_line` (sorts by x) are distinguished.
+- **Non-spanning layer reordering**: `compare_visual()` sorts both plots' layers
+  alphabetically by geom name when no spanning layer (geom_smooth with se=TRUE) is
+  present, making `geom_smooth(se=FALSE) + geom_point` visually equivalent to its
+  reverse.
+- **Prescriptive `$hint` field**: all `equiv_*()` failure results carry a `$hint`
+  character scalar naming the smallest change that would make the comparison pass.
+
+**Design constraint — plot rendering required for visual mode**: All normalisation rules
+in `compare_visual()` (`.norm_coord_flip`, `.norm_scale_names`, `.norm_guide_labels`,
+`.norm_theme_labels`, `.sort_layers_by_geom`) and the data comparison in
+`equiv_rendered()` call `ggplot_build()`, which evaluates the plot's stat pipeline and
+renders all layers.  This imposes three constraints:
+
+1. **Mode restriction**: any canonicalisation rule that requires rendering can only
+   appear in `compare_visual()` / visual mode or higher.  Strict and structural modes
+   operate solely on the stored spec (data-free, no `ggplot_build()` call).
+2. **Buildability**: the plots being compared must be buildable — their datasets must
+   be accessible in the current R session and all required packages loaded.
+3. **Performance**: visual comparison is substantially slower than structural
+   comparison because `ggplot_build()` must be called twice.  For high-throughput
+   grading pipelines, prefer structural mode when it covers the needed equivalences.
 
 The remaining work is in clusters covered in sections 1–7:
 - **§1** Multi-dataset layer verification (`equiv_layer_data`, `equiv_layer_order_visual`)
@@ -186,9 +216,14 @@ canonicalisation pipeline — a non-trivial integration step. A phased approach:
 - **Phase 1**: flag the pattern in `$changes` without normalising (detection only).
 - **Phase 2**: full normalisation with data verification.
 
-`examples/penguins_pairwise_count.R` is structured into two separate equivalence
-groups precisely because of this cross-geom boundary; once
+`inst/examples/2d-count.R` illustrates the two separate equivalence groups
+(Group A: `geom_count()` variants; Group B: `count() + geom_point(aes(size=n))`
+variants) precisely because of this cross-geom boundary.  Once
 `.rule_stat_geom_to_precomputed` exists, A and B can be unified.
+
+Note: any such rule requires access to the plot's built data and therefore can
+only appear in visual mode or higher — not in structural mode (see design
+constraint in the header of this file).
 
 ---
 
@@ -387,24 +422,20 @@ tidy data frame. Columns: `aesthetic`, `guide_type` (chr), `title` (chr),
 
 ## 7. CRAN / package hygiene
 
-### 6.1 `examples/` directory
+### 6.1 `examples/` directory ✓ done
 
-The `examples/` directory at the package root is non-standard and invisible to
-`R CMD check`. Content has been subsumed into vignettes. The directory should be
-moved to `inst/examples/` so the scripts remain accessible via
-`system.file("examples", package = "ggspec")`.
+Content moved to `inst/examples/`.  Bare-code scripts without `test_that()`
+assertions have been progressively deleted as their patterns were subsumed into
+`tests/testthat/`.
 
-**Action**: `git mv examples/ inst/examples/` — the `~` (backup) files already
-present in `inst/examples/` should be removed.
+### 6.2 Spatial / non-CRAN data (`geodaData`, `rnaturalearth`) — updated
 
-### 6.2 Spatial / non-CRAN data (`geodaData`, `rnaturalearth`)
+`ncovr_layers_global_local.R` has been deleted.  The multi-dataset `geom_sf`
+pattern (layer-order equivalence with and without region overlap) is now stubbed
+in `inst/examples/2data.R`.  Any vignette coverage of this pattern must use
+`eval = FALSE` blocks until a self-contained `sf` fixture is embedded in
+`inst/testdata/`.
 
-`examples/ncovr_layers_global_local.R` depends on `geodaData` (GitHub only) and
-`rnaturalearth`. Any vignette coverage of multi-dataset `geom_sf` patterns must
-use `eval = FALSE` code blocks until this data dependency is resolved (e.g. by
-embedding a tiny reproducible `sf` fixture in `inst/testdata/`).
+### 6.3 `.gitignore` / backup files ✓ done
 
-### 6.3 `.gitignore` / backup files
-
-`inst/examples/` contains `*.R~` editor backup files that should be added to
-`.gitignore` or deleted before any CRAN submission.
+Editor backup files (`*.R~`) removed from `inst/examples/`.

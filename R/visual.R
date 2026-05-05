@@ -222,6 +222,42 @@ equiv_rendered <- function(p1, p2) {
 }
 
 # ---------------------------------------------------------------------------
+# Spanning-layer helpers (used by compare_visual)
+# ---------------------------------------------------------------------------
+
+#' Detect whether a layer renders a spanning region
+#'
+#' A spanning layer (currently: geom_smooth with se=TRUE) renders a filled
+#' ribbon that visually overlaps adjacent layers.  When spanning layers are
+#' present, layer order affects the rendered output, so layer reordering is
+#' NOT transparent.  When no layer is spanning, reordering is cosmetic.
+#' @noRd
+.is_spanning_layer <- function(l) {
+  geom_nm <- tolower(sub("^Geom", "", class(l$geom)[[1L]]))
+  if (geom_nm != "smooth") return(FALSE)
+  # se defaults to TRUE (ribbon rendered); check explicit override
+  se <- c(l$aes_params,
+          l$stat_params  %||% list(),
+          l$geom_params  %||% list())[["se"]]
+  !isFALSE(se)
+}
+
+#' Sort a ggplot object's layers alphabetically by geom name
+#'
+#' Produces the same canonical layer order as `canon(mode = "structural")`.
+#' Applied in `compare_visual()` to plots without spanning layers so that
+#' `geom_smooth(se=FALSE) + geom_point` and its reverse are visually equivalent.
+#' @noRd
+.sort_layers_by_geom <- function(p) {
+  if (length(p$layers) <= 1L) return(p)
+  geom_nms <- vapply(p$layers, function(l) {
+    tolower(sub("^Geom", "", class(l$geom)[[1L]]))
+  }, character(1L))
+  p$layers <- p$layers[order(geom_nms)]
+  p
+}
+
+# ---------------------------------------------------------------------------
 # compare_visual
 # ---------------------------------------------------------------------------
 
@@ -258,6 +294,18 @@ compare_visual <- function(p1, p2,
 
   p1n <- .norm_coord_flip(p1)
   p2n <- .norm_coord_flip(p2)
+
+  # When no layer in either plot is spanning (e.g. all are geom_smooth(se=FALSE)
+  # or non-smooth geoms), sort both plots' layers into the same canonical order.
+  # This makes layer reordering transparent to visual equivalence, consistent
+  # with structural mode's layer_order rule for non-spanning geoms.
+  # Requires ggplot_build(), so this normalisation is visual-only.
+  if (!any(vapply(p1n$layers, .is_spanning_layer, logical(1L))) &&
+      !any(vapply(p2n$layers, .is_spanning_layer, logical(1L)))) {
+    p1n <- .sort_layers_by_geom(p1n)
+    p2n <- .sort_layers_by_geom(p2n)
+  }
+
   q1  <- .norm_theme_labels(.norm_guide_labels(.norm_scale_names(p1n)))
   q2  <- .norm_theme_labels(.norm_guide_labels(.norm_scale_names(p2n)))
 

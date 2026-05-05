@@ -169,3 +169,22 @@ test_that("equiv_rendered() distinguishes unsorted path from line", {
   p2 <- ggplot(economics, aes(x = psavert, y = pce)) + geom_line()
   expect_false(as.logical(equiv_rendered(p1, p2)))
 })
+
+# ---------------------------------------------------------------------------
+# compare_visual() — non-spanning layer order transparency
+# ---------------------------------------------------------------------------
+
+test_that("compare_visual() passes for geom_smooth(se=FALSE)+point vs point+geom_smooth(se=FALSE)", {
+  expect_true(as.logical(compare_visual(
+    make_smooth_point_plot(), make_point_smooth_plot(), check = "rendered")))
+})
+
+test_that("compare_visual() fails for geom_smooth(se=TRUE)+point vs point+geom_smooth(se=TRUE)", {
+  expect_false(as.logical(compare_visual(
+    plot_smooth_then_point(), plot_point_then_smooth(), check = "rendered")))
+})
+
+test_that("compare_plots(mode='visual') passes for geom_smooth(se=FALSE)+point vs reversed", {
+  expect_true(as.logical(compare_plots(
+    make_smooth_point_plot(), make_point_smooth_plot(), mode = "visual")))
+})

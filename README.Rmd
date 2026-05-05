@@ -137,6 +137,14 @@ structural comparison cannot:
 compare_plots(p1, p2, mode = "visual")
 ```
 
+**Design constraint**: visual equivalence calls `ggplot_build()` on both plots.
+This means (a) both plots must be buildable with their data accessible in the
+session, (b) it is slower than structural comparison, and (c) it is
+output-based — it does not verify that the plots were derived from the same
+source data.  Two plots backed by different datasets that happen to produce the
+same rendered output will pass visual equivalence.  Use structural mode when
+data provenance must be verified.
+
 ### Conceptual similarity
 
 Two plots are **conceptually similar** when they communicate the same

@@ -32,12 +32,21 @@ The patterns fall into four tiers:
 | Visual | `compare_plots(mode = "visual")` | `coord_flip` absorbed, `scale_*(name=)` / `guides()` / `theme(element_blank())` → `labs()` |
 | Conceptual | `compare_plots(mode = "conceptual")` | Boxplot ≡ violin ≡ jitter; scale limits ≡ coord zoom; etc. |
 
-**Scope note:** Visual equivalence is purely output-based — it checks that two
-plots produce the same rendered data, labels, facets, and coordinate system.  It
-does not verify data provenance.  If two different datasets happen to produce
-visually identical output (same bar heights, same x-axis labels), visual
-equivalence will pass.  Use structural equivalence when you need to verify that
-the same data and the same code idiom were used.
+**Scope note:** Visual equivalence is purely output-based — it calls
+`ggplot_build()` and checks that two plots produce the same rendered data,
+labels, facets, and coordinate system.  It does not verify data provenance: two
+plots backed by different datasets that happen to produce visually identical
+output (same bar heights, same x-axis labels) will pass visual equivalence.
+Use structural equivalence when you need to verify that the same data and the
+same code idiom were used.
+
+Because `ggplot_build()` must be called, visual mode also imposes a
+buildability requirement: both plots must be evaluable with their data
+accessible in the current R session.  Any canonicalisation rule that requires
+rendering (`.norm_coord_flip`, `.norm_guide_labels`, `.norm_theme_labels`,
+`.sort_layers_by_geom`, `equiv_rendered`) can only appear in visual mode or
+higher — strict and structural modes are data-free and never call
+`ggplot_build()`.
 
 ```{r}
 library(ggspec)

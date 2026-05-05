@@ -16,6 +16,15 @@ test_that("geom_point + geom_line is structurally and visually equivalent to geo
   expect_true(as.logical(compare_plots(p1, p2, mode = "conceptual")))
 })
 
+test_that("geom_point + geom_smooth without SE is structurally and visually equivalent to geom_smooth without SE + geom_point", {
+  p1 <- make_smooth_point_plot()
+  p2 <- make_point_smooth_plot()
+  expect_false(as.logical(compare_plots(p1, p2, mode = "strict")))
+  expect_true(as.logical(compare_plots(p1, p2, mode = "structural")))
+  expect_true(as.logical(compare_plots(p1, p2, mode = "visual")))
+  expect_true(as.logical(compare_plots(p1, p2, mode = "conceptual")))
+})
+
 ## Rule: 2 geoms in different orders are structurally but not visually equivalent WHEN at least one of them is spanning
 
 ## Equivalent according to following modes?
