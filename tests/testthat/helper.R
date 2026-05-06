@@ -147,7 +147,7 @@ make_area_bin_plot <- function() {
 }
 
 # ---------------------------------------------------------------------------
-# Penguins — 1-D continuous by 1-D discrete (species × body_mass)
+# Penguins — 1-D continuous by 1-D discrete (species by body_mass)
 # ---------------------------------------------------------------------------
 
 make_boxplot_plot <- function() {
@@ -198,7 +198,7 @@ make_boxplot_yx_flip_plot <- function() {
 }
 
 # ---------------------------------------------------------------------------
-# Penguins — 2-D discrete counts (species × island)
+# Penguins — 2-D discrete counts (species by island)
 # ---------------------------------------------------------------------------
 
 make_2d_count_plot <- function() {
@@ -229,7 +229,7 @@ make_2d_count_identity_plot <- function() {
 }
 
 # ---------------------------------------------------------------------------
-# Penguins — 1-layer & 2-layer smooth & with colour (flipper_len × body_mass)
+# Penguins — 1-layer & 2-layer smooth & with colour (flipper_len by body_mass)
 # ---------------------------------------------------------------------------
 
 plot_point_then_smooth <- function() {

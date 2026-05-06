@@ -69,7 +69,7 @@ combine_results <- function(results) {
     dplyr::mutate(r$detail, check = r$check, .before = 1L)
   }))
 
-  # Special hint: rendered passes but labels fail → bar-height-vs-label mismatch
+  # Special hint: rendered passes but labels fail -> bar-height-vs-label mismatch
   checks_pass <- vapply(results, function(r) r$check, character(1L))[
     vapply(results, function(r) isTRUE(r$pass), logical(1L))]
   checks_fail <- vapply(results, function(r) r$check, character(1L))[

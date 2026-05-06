@@ -23,7 +23,7 @@ standardised. Preserves data/mapping placement and layer order.}
 data/mapping into each non-zero layer so that placement differences
 (global vs per-layer) become transparent; sort layers into a
 canonical order by \verb{(geom, stat)}; normalise geom/stat
-representation (\code{geom_col} → \code{geom_bar(stat="identity")}).}
+representation (\code{geom_col} -> \code{geom_bar(stat="identity")}).}
 }
 Visual and conceptual comparison (which require rendering via
 \code{\link[ggplot2:ggplot_build]{ggplot2::ggplot_build()}}) are handled by \code{\link[=compare_visual]{compare_visual()}} and

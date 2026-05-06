@@ -74,7 +74,7 @@ spec_layers(p, inherit = FALSE)$mapping
 ## Aesthetic specification (long format)
 
 `spec_aes()` pivots the mapping information into long format — one row per
-(layer × aesthetic) pair — making it easy to filter and inspect with standard
+(layer-aesthetic) pair — making it easy to filter and inspect with standard
 `dplyr` operations.
 
 ```{r}

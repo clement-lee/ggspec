@@ -54,11 +54,11 @@
 # WHEN: both plots map the same variable to x (or y), no explicit y mapping
 #
 # Identification is by stat, not geom, because:
-#   geom_histogram() → geom="bar",  stat="bin"
-#   geom_freqpoly()  → geom="path", stat="bin"
-#   geom_area(stat="bin") → geom="area", stat="bin"
-#   geom_density()   → geom="density", stat="density"
-#   geom_dotplot()   → geom="dotplot", stat="bindot"
+#   geom_histogram() -> geom="bar",  stat="bin"
+#   geom_freqpoly()  -> geom="path", stat="bin"
+#   geom_area(stat="bin") -> geom="area", stat="bin"
+#   geom_density()   -> geom="density", stat="density"
+#   geom_dotplot()   -> geom="dotplot", stat="bindot"
 # ---------------------------------------------------------------------------
 
 .detect_distribution_1d <- function(p1, p2) {

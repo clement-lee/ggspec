@@ -203,8 +203,8 @@ check_plot(.result, ref,
 | Mode | Normalisation rules applied |
 |---|---|
 | `"strict"` | None beyond what `spec_plot()` already does |
-| `"structural"` | `geom_col` → `geom_bar`; layer order sorted |
-| `"visual"` | Structural + `coord_flip` absorbed; scale `name` → `labs()` |
+| `"structural"` | `geom_col` -> `geom_bar`; layer order sorted |
+| `"visual"` | Structural + `coord_flip` absorbed; scale `name` -> `labs()` |
 | `"pedagogical"` | Visual + histogram `bins`/`binwidth` flagged; `after_stat()` logged |
 
 The `$changes` tibble on a `ggspec_canon` object records every normalisation

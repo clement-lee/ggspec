@@ -205,11 +205,11 @@ equivalence modes above, conceptual similarity is not a strict
 mathematical equivalence relation; each claim is qualified by a WHEN
 condition:
 
-| Claim                                      | WHEN                               |
-| ------------------------------------------ | ---------------------------------- |
-| boxplot ≡ violin ≡ jitter                  | 1 continuous + 1 discrete variable |
-| density ≡ histogram ≡ freqpoly ≡ dotplot   | 1 continuous variable              |
-| `geom_count` ≡ `geom_point(aes(size = n))` | 2 discrete variables, joint counts |
+| Claim                                             | WHEN                               |
+| ------------------------------------------------- | ---------------------------------- |
+| boxplot, violin, jitter all similar               | 1 continuous + 1 discrete variable |
+| density, histogram, freqpoly, dotplot all similar | 1 continuous variable              |
+| `geom_count`, `geom_point(aes(size = n))` similar | 2 discrete variables, joint counts |
 
 ``` r
 compare_plots(p1, p2, mode = "conceptual")

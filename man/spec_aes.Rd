@@ -17,7 +17,7 @@ global-context row; pass \code{1L} etc. for specific non-zero layers.}
 layers; same semantics as in \code{\link[=spec_layers]{spec_layers()}}.}
 }
 \value{
-A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per layer × aesthetic and columns:
+A \code{\link[tibble:tibble]{tibble::tibble()}} with one row per layer-aesthetic and columns:
 \describe{
 \item{\code{layer}}{Integer layer index. \code{0} = global context; \verb{1..N} =
 regular layers.}
@@ -30,7 +30,7 @@ both global and local, local takes precedence).}
 }
 }
 \description{
-Returns one row per (layer × aesthetic) pair, making it easy to check
+Returns one row per (layer-aesthetic) pair, making it easy to check
 which variable is mapped to which aesthetic in which layer.  A row with
 \code{layer = 0} is always included to document any mapping specified directly
 in \code{ggplot()}.

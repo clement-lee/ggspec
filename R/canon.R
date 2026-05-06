@@ -28,7 +28,7 @@
 #'       data/mapping into each non-zero layer so that placement differences
 #'       (global vs per-layer) become transparent; sort layers into a
 #'       canonical order by `(geom, stat)`; normalise geom/stat
-#'       representation (`geom_col` → `geom_bar(stat="identity")`).}
+#'       representation (`geom_col` -> `geom_bar(stat="identity")`).}
 #'   }
 #'   Visual and conceptual comparison (which require rendering via
 #'   [ggplot2::ggplot_build()]) are handled by [compare_visual()] and

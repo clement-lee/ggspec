@@ -37,7 +37,7 @@ comparison cannot (pre-counted vs stat-computed, coord_flip vs swapped
 aesthetics, scale name vs labs).
 \item \strong{conceptual}: same communicative intent with different visual encodings.
 Handled by \code{\link[=compare_conceptual]{compare_conceptual()}}; each rule is qualified by a WHEN
-condition (e.g. boxplot ≡ violin WHEN 1 continuous + 1 discrete variable).
+condition (e.g. boxplot ~ violin WHEN 1 continuous + 1 discrete variable).
 }
 }
 
@@ -45,7 +45,7 @@ condition (e.g. boxplot ≡ violin WHEN 1 continuous + 1 discrete variable).
 
 \itemize{
 \item \code{\link[=spec_layers]{spec_layers()}} — one row per layer (geom, stat, position, mappings, params)
-\item \code{\link[=spec_aes]{spec_aes()}} — one row per layer × aesthetic (long format)
+\item \code{\link[=spec_aes]{spec_aes()}} — one row per layer-aesthetic pair (long format)
 \item \code{\link[=spec_scales]{spec_scales()}} — one row per scale
 \item \code{\link[=spec_facets]{spec_facets()}} — facet type and variables
 \item \code{\link[=spec_labels]{spec_labels()}} — one row per label

@@ -6,8 +6,8 @@
 # [ggplot2::ggplot_build()] to evaluate plots semantically rather than comparing specs.
 #
 # Key distinction (CAS analogy):
-#   Structural ≡ syntactic equality under a term rewriting system (TRS)
-#   Visual     ≡ semantic equality: same evaluation under rendering semantics
+#   Structural == syntactic equality under a term rewriting system (TRS)
+#   Visual     == semantic equality: same evaluation under rendering semantics
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------

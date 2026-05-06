@@ -41,7 +41,7 @@ test_that("compare_plots() errors for non-ggplot input", {
 })
 
 # ---------------------------------------------------------------------------
-# geom_col ≡ geom_bar(stat = "identity") — equivalent after canonicalisation
+# geom_col == geom_bar(stat = "identity") -- equivalent after canonicalisation
 # ---------------------------------------------------------------------------
 
 test_that("geom_col and geom_bar(stat='identity') differ at spec level", {

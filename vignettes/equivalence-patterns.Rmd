@@ -30,7 +30,7 @@ The patterns fall into four tiers:
 | Direct | `equiv_plot()` | Resolved aes, geom-name subset |
 | Structural | `compare_plots(mode = "structural")` | `geom_col` → `geom_bar`, layer order |
 | Visual | `compare_plots(mode = "visual")` | `coord_flip` absorbed, `scale_*(name=)` / `guides()` / `theme(element_blank())` → `labs()` |
-| Conceptual | `compare_plots(mode = "conceptual")` | Boxplot ≡ violin ≡ jitter; scale limits ≡ coord zoom; etc. |
+| Conceptual | `compare_plots(mode = "conceptual")` | Boxplot ~ violin ~ jitter; scale limits ~ coord zoom; etc. |
 
 **Scope note:** Visual equivalence is purely output-based — it calls
 `ggplot_build()` and checks that two plots produce the same rendered data,
@@ -201,7 +201,7 @@ p_flip <- ggplot(mpg, aes(y = class)) + geom_bar() + coord_flip()
 # Direct aes check fails:
 equiv_plot(p_ref, p_flip, check = "aes")
 
-# Visual mode applies .rule_coord_flip, swapping x ↔ y and replacing
+# Visual mode applies .rule_coord_flip, swapping x <-> y and replacing
 # coord_flip with coord_cartesian before comparison:
 compare_plots(p_ref, p_flip, mode = "visual", check = c("layers", "aes", "coord"))
 ```
@@ -310,10 +310,10 @@ Equivalence matrix (`mode = "visual"`):
 
 | | (a) `geom_bar` | (b) `geom_col` + `labs(y="count")` | (c) y col = `"count"` | (d) `geom_col` + `labs(y="count")` |
 |---|---|---|---|---|
-| **(a)** | — | ✓ (heights + label both "count") | ✓ (col name "count" = stat default) | ✓ (explicit label matches) |
-| **(b)** | ✓ | — | ✓ | ✓ |
-| **(c)** | ✓ | ✓ | — | ✓ |
-| **(d)** | ✓ | ✓ | ✓ | — |
+| **(a)** | --- | yes (heights + label both "count") | yes (col name "count" = stat default) | yes (explicit label matches) |
+| **(b)** | yes | --- | yes | yes |
+| **(c)** | yes | yes | --- | yes |
+| **(d)** | yes | yes | yes | --- |
 
 The only cases that fail are those where the effective y-axis labels differ
 (e.g. `(a)` vs a pre-counted form with `y = n` and no explicit `labs(y = ...)`).

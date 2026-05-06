@@ -1,6 +1,6 @@
 #' Extract aesthetic mappings as a long-format tidy data frame
 #'
-#' Returns one row per (layer × aesthetic) pair, making it easy to check
+#' Returns one row per (layer-aesthetic) pair, making it easy to check
 #' which variable is mapped to which aesthetic in which layer.  A row with
 #' `layer = 0` is always included to document any mapping specified directly
 #' in `ggplot()`.
@@ -12,7 +12,7 @@
 #' @param inherit Controls global/local mapping inheritance for non-zero
 #'   layers; same semantics as in [spec_layers()].
 #'
-#' @return A [tibble::tibble()] with one row per layer × aesthetic and columns:
+#' @return A [tibble::tibble()] with one row per layer-aesthetic and columns:
 #'   \describe{
 #'     \item{`layer`}{Integer layer index. `0` = global context; `1..N` =
 #'       regular layers.}

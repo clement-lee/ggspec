@@ -6,19 +6,19 @@ ggspec was motivated by two gaps in the existing ecosystem:
 
 | Limitation | ggcheck | gginnards | ggspec |
 |---|---|---|---|
-| Hard dependency on learnr/gradethis | ✓ (required) | N/A | ✗ (fail_fn injection) |
-| Returns tidy data frames | ✗ | ✗ | ✓ |
-| Full declarative spec extraction | ✗ | partial | ✓ |
-| Framework-agnostic grading assertion | ✗ | ✗ | ✓ |
-| Canonicalisation (coord_flip, geom_col, etc.) | ✗ | ✗ | ✓ (structural) |
-| Build-enriched default/explicit detection | ✗ | partial | ✓ (`enrich_spec`) |
-| Visual equivalence (ggplot_build comparison) | ✗ | ✗ | ✓ (`compare_visual`) |
-| Conceptual similarity detection | ✗ | ✗ | ✓ (`compare_conceptual`) |
-| `..var..` / `after_stat()` normalisation | ✗ | ✗ | ✗ pending |
-| Scale-transform vs mapping-transform equivalence | ✗ | ✗ | ✗ pending |
-| Theme extraction + comparison | ✗ | partial | ✗ pending |
-| Guide/legend extraction + comparison | ✗ | ✗ | ✗ pending |
-| Cross-geom stat equivalence (structural) | ✗ | ✗ | ✗ pending (visual ✓) |
+| Hard dependency on learnr/gradethis | yes (required) | N/A | no (fail_fn injection) |
+| Returns tidy data frames | no | no | yes |
+| Full declarative spec extraction | no | partial | yes |
+| Framework-agnostic grading assertion | no | no | yes |
+| Canonicalisation (coord_flip, geom_col, etc.) | no | no | yes (structural) |
+| Build-enriched default/explicit detection | no | partial | yes (`enrich_spec`) |
+| Visual equivalence (ggplot_build comparison) | no | no | yes (`compare_visual`) |
+| Conceptual similarity detection | no | no | yes (`compare_conceptual`) |
+| `..var..` / `after_stat()` normalisation | no | no | pending |
+| Scale-transform vs mapping-transform equivalence | no | no | pending |
+| Theme extraction + comparison | no | partial | pending |
+| Guide/legend extraction + comparison | no | no | pending |
+| Cross-geom stat equivalence (structural) | no | no | pending (visual done) |
 
 The core extraction, comparison, and grading-workflow tiers are feature-complete.
 The following edge cases have been verified as already handled:
@@ -84,11 +84,11 @@ The remaining work is in clusters covered in sections 1–7:
 
 | Capability | Status |
 |---|---|
-| `spec_layers()$data_source` marks `"global"` vs `"local"` per layer | ✓ done |
-| `layer_data_index(p, data)` locates a data frame within a plot | ✓ done |
-| `equiv_data(p, layer = i)` compares a single layer's data by hash | ✓ done |
-| `equiv_layers()` / `equiv_aes()` ignore `data_source` by design | ✓ done |
-| Plots differing only in where data is supplied (global vs per-layer) pass | ✓ done |
+| `spec_layers()$data_source` marks `"global"` vs `"local"` per layer | [done] |
+| `layer_data_index(p, data)` locates a data frame within a plot | [done] |
+| `equiv_data(p, layer = i)` compares a single layer's data by hash | [done] |
+| `equiv_layers()` / `equiv_aes()` ignore `data_source` by design | [done] |
+| Plots differing only in where data is supplied (global vs per-layer) pass | [done] |
 
 ### 1.2 What is missing
 
@@ -164,9 +164,9 @@ frame by frame. The following pairs are therefore already visually equivalent:
 
 | Stat-computing form | Pre-computed form | Status |
 |---|---|---|
-| `geom_count()` | `count() + geom_point(aes(size = n))` | ✓ visual |
-| `geom_bar()` (stat="count") | `count() + geom_col()` | ✓ visual |
-| `geom_bar()` (stat="count") | `count() + geom_bar(stat="identity")` | ✓ visual |
+| `geom_count()` | `count() + geom_point(aes(size = n))` | [done] |
+| `geom_bar()` (stat="count") | `count() + geom_col()` | [done] |
+| `geom_bar()` (stat="count") | `count() + geom_bar(stat="identity")` | [done] |
 
 **Variable-name mismatch caveat**: when the pre-computed plot uses a column name
 that differs from the stat-computed default (e.g. `count(species, name="count")`
@@ -422,7 +422,7 @@ tidy data frame. Columns: `aesthetic`, `guide_type` (chr), `title` (chr),
 
 ## 7. CRAN / package hygiene
 
-### 6.1 `examples/` directory ✓ done
+### 6.1 `examples/` directory [done]
 
 Content moved to `inst/examples/`.  Bare-code scripts without `test_that()`
 assertions have been progressively deleted as their patterns were subsumed into
@@ -436,6 +436,6 @@ in `inst/examples/2data.R`.  Any vignette coverage of this pattern must use
 `eval = FALSE` blocks until a self-contained `sf` fixture is embedded in
 `inst/testdata/`.
 
-### 6.3 `.gitignore` / backup files ✓ done
+### 6.3 `.gitignore` / backup files [done]
 
 Editor backup files (`*.R~`) removed from `inst/examples/`.

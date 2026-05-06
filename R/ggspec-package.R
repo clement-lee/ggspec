@@ -31,11 +31,11 @@
 #'   aesthetics, scale name vs labs).
 #' - **conceptual**: same communicative intent with different visual encodings.
 #'   Handled by [compare_conceptual()]; each rule is qualified by a WHEN
-#'   condition (e.g. boxplot ≡ violin WHEN 1 continuous + 1 discrete variable).
+#'   condition (e.g. boxplot ~ violin WHEN 1 continuous + 1 discrete variable).
 #'
 #' @section Extraction functions:
 #' - [spec_layers()] — one row per layer (geom, stat, position, mappings, params)
-#' - [spec_aes()] — one row per layer × aesthetic (long format)
+#' - [spec_aes()] — one row per layer-aesthetic pair (long format)
 #' - [spec_scales()] — one row per scale
 #' - [spec_facets()] — facet type and variables
 #' - [spec_labels()] — one row per label

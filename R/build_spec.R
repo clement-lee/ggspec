@@ -136,7 +136,7 @@ enrich_spec <- function(p) {
     if (nm %in% names(stored_aes)) return(TRUE)
     # Compare stored value with the reference default
     val <- .val(nm)
-    if (!nm %in% names(ref)) return(TRUE)   # unknown param → assume explicit
+    if (!nm %in% names(ref)) return(TRUE)   # unknown param -> assume explicit
     !identical(val, ref[[nm]])
   }
 
