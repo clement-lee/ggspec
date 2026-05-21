@@ -28,14 +28,14 @@ Wraps \code{\link[=check_plot]{check_plot()}} as a \code{testthat} expectation. 
 package (listed in \code{Suggests}).
 }
 \examples{
-\dontrun{
-# Inside a testthat test:
-testthat::test_that("plot has correct layers", {
-  ref <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
-    ggplot2::geom_point()
-  obs <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
-    ggplot2::geom_point()
-  expect_equiv_plot(obs, ref, check = "layers")
-})
+if (requireNamespace("testthat", quietly = TRUE)) {
+  # Inside a testthat test:
+  testthat::test_that("plot has correct layers", {
+    ref <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+      ggplot2::geom_point()
+    obs <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+      ggplot2::geom_point()
+    expect_equiv_plot(obs, ref, check = "layers")
+  })
 }
 }

@@ -1,12 +1,14 @@
-This is the first ever submission of the package to CRAN. The total check time is expected to be below 10min.
+This is the resubmission of the package to CRAN. Previously, a maintainer requested the following changes, which have all been implemented:
 
-There are no ERRORs or WARNINGs. There is a possible NOTE due to this being a new submission:
+1. The redundant "Provides tools to" from the description has been omitted.
+2. All the instances of \dontrun{} & \donttest have been removed as the examples are executable, and in < 5 sec.
+3. Examples that need packages in 'Suggests' are wrapped with the if statement: if (requireNamespace("pkgname")) {}
+
+
+
+The total check time is expected to be below 10min. There are no ERRORs or WARNINGs. There is a possible NOTE due to this being a new submission:
 
 * checking CRAN incoming feasibility ... NOTE
 Maintainer: 'Clement Lee <clement.lee.tm@outlook.com>'
 
 New submission
-
-Possibly misspelled words in DESCRIPTION:
-  ggplot (3:28, 9:40, 12:60)
-  pipeable (16:26)

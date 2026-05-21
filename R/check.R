@@ -86,15 +86,15 @@ check_plot <- function(p, expected,
 #' @return Called for its side effects (a testthat expectation).
 #' @export
 #' @examples
-#' \dontrun{
-#' # Inside a testthat test:
-#' testthat::test_that("plot has correct layers", {
-#'   ref <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
-#'     ggplot2::geom_point()
-#'   obs <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
-#'     ggplot2::geom_point()
-#'   expect_equiv_plot(obs, ref, check = "layers")
-#' })
+#' if (requireNamespace("testthat", quietly = TRUE)) {
+#'   # Inside a testthat test:
+#'   testthat::test_that("plot has correct layers", {
+#'     ref <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+#'       ggplot2::geom_point()
+#'     obs <- ggplot2::ggplot(ggplot2::mpg, ggplot2::aes(displ, hwy)) +
+#'       ggplot2::geom_point()
+#'     expect_equiv_plot(obs, ref, check = "layers")
+#'   })
 #' }
 expect_equiv_plot <- function(p, expected,
                                check = c("layers", "aes", "scales", "facets",
